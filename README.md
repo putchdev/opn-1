@@ -41,16 +41,7 @@ FM-1 and play them back exactly, with a live view of every channel on the device
 
 ## Getting started
 
-1. **Install the firmware.** Download the latest `.fwsc` from the Releases page and install it over USB:
-
-   ```sh
-   pip3 install mido python-rtmidi
-   python3 tools/fm1_install.py opn1-X.Y.fwsc   # asks before it writes, then restarts into OPN-1
-   python3 tools/fm1_install.py --info          # shows what the connected FM-1 runs
-   ```
-
-   To go back to the official firmware or another one, use the
-   [FM-1 Firmware Hub](https://fm1.designburgapps.com) in Chrome or Edge.
+1. **Install the firmware** on the FM-1, as in [Installing the firmware](#installing-the-firmware) below.
 2. **Open the page** in Chrome or Edge: **<https://opn-1.putch.co.uk/>**. To run it locally instead
    (Web MIDI needs https or localhost):
 
@@ -67,6 +58,50 @@ FM-1 and play them back exactly, with a live view of every channel on the device
 **Rescue:** if the FM-1 ever fails to start, hold **OCT-** while switching it on. It starts the USB updater only,
 so a working firmware can be installed from there.
 
+
+## Installing the firmware
+
+You need the FM-1 plugged in over USB, Python 3, and two files in one folder:
+
+- the `.fwsc` from the [latest release](https://github.com/putchdev/opn-1/releases/latest)
+- the installer, [`fm1_install.py`](https://raw.githubusercontent.com/putchdev/opn-1/main/tools/fm1_install.py)
+  (right click, Save link as)
+
+Close anything else that talks to the FM-1 over MIDI first, including the OPN-1 page and any DAW. On Windows only
+one program at a time can use it. In the commands below, use the name of the `.fwsc` you downloaded.
+
+**Windows.** Install Python from [python.org](https://www.python.org/downloads/), ticking "Add python.exe to PATH".
+Open Command Prompt in the folder with the two files and run:
+
+```bat
+py -m pip install mido python-rtmidi
+py fm1_install.py opn1-1.0.0.fwsc
+```
+
+**macOS.** Install Python from [python.org](https://www.python.org/downloads/) (or `brew install python`). Open
+Terminal in the folder with the two files and run:
+
+```sh
+python3 -m venv ~/.venv/fm1
+~/.venv/fm1/bin/pip install mido python-rtmidi
+~/.venv/fm1/bin/python fm1_install.py opn1-1.0.0.fwsc
+```
+
+**Linux.** On Debian or Ubuntu:
+
+```sh
+sudo apt install python3-mido python3-rtmidi
+python3 fm1_install.py opn1-1.0.0.fwsc
+```
+
+On other distributions, use the macOS commands (Python's `venv` module may be a separate package).
+
+The installer asks before it writes anything. The FM-1 then restarts into OPN-1 and shows its version on the screen.
+`fm1_install.py --info` shows what the connected FM-1 runs. If an install is cut off, run the same command again and
+it finishes.
+
+To go back to the official firmware or another one, use the
+[FM-1 Firmware Hub](https://fm1.designburgapps.com) in Chrome or Edge.
 ## Disclaimer
 
 Installing OPN-1, or any custom firmware, on an M-VAVE FM-1 is done entirely at the owner's own risk. It may void

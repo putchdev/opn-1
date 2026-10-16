@@ -1,342 +1,326 @@
 <!doctype html>
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-<!-- OPN-1: plays and loads the FM-1 running OPN-1 over USB-MIDI (WebMIDI: Chrome or Edge).
+<!-- OPN-1: the FM-1's library, parts, editor, drums and songs over USB-MIDI (WebMIDI: Chrome or Edge).
      Serve it from localhost, which WebMIDI accepts as secure:  python3 -m http.server -d web 8000
-     then open http://localhost:8000/. Protocol: firmware/src/opn1.c. -->
+     then open http://localhost:8000/. Protocol: docs/MIDI.md and firmware/src/opn1.c. -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>OPN-1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Exo+2:ital,wght@0,400;0,600;1,800;1,900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #050506; --card: #111114; --line: #2a2a31; --text: #eceef3; --dim: #8d919e; --soft: #1b1b20;
-  --acc: #e8242c; --acc-soft: #2a0d10; --warm: #ff6a3d; --warm-soft: #2e140c; --good: #3ccf7a; --bad: #ff5a5a;
-  --pad: #eceef3; --shadow: 0 2px 14px rgba(0, 0, 0, .6); --white-key: #e4e6ec; --black-key: #0b0b0d;
+  --bg: #000; --panel: #0e0e10; --soft: #141418; --line: #2a2a31; --line2: #3a3a44; --text: #eceef2; --dim: #a3a8b4;
+  --faint: #6e7380; --acc: #e8242c; --acc-hi: #ff4a50; --acc-dk: #7a0e14; --pink: #ff6b70; --good: #3ccf7a; --warn: #ffd23f;
+  --op0: #ff4a50; --op1: #ffd23f; --op2: #3fd0ff; --op3: #c78bff;
   --chrome: linear-gradient(180deg, #fff 0%, #cfe3ff 38%, #4a5466 50%, #b7a48c 62%, #fff 100%);
-  --display: "Arial Black", "Helvetica Neue", Impact, system-ui, sans-serif;
+  --mono: "Share Tech Mono", ui-monospace, monospace;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg) repeating-linear-gradient(0deg, transparent 0 3px, rgba(255, 255, 255, .015) 3px 4px); color: var(--text); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
-.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; max-width: 1000px; margin: 0 auto; flex-wrap: wrap; }
-.logo { font: italic 900 34px/1 var(--display); letter-spacing: 1px; background: var(--chrome); -webkit-background-clip: text; background-clip: text; color: transparent;
-  filter: drop-shadow(2px 2px 0 #7a0e14); }
-.logo span { background: inherit; -webkit-background-clip: text; background-clip: text; }
-.top { border-bottom: 6px solid var(--acc); box-shadow: 0 4px 0 var(--bg), 0 6px 0 var(--acc), 0 9px 0 var(--bg), 0 10px 0 #7a0e14; margin-bottom: 26px !important; }
-.tag { color: var(--dim); font: 12px ui-monospace, monospace; letter-spacing: 2px; text-transform: uppercase; margin-top: 4px; }
-.right { display: flex; gap: 8px; align-items: center; }
-main { max-width: 1000px; margin: 0 auto; padding: 0 20px 40px; display: grid; gap: 16px; }
-main > * { min-width: 0; }                      /* (else the keyboard's width stretches every card) */
-.card { background: var(--card); border: 1px solid var(--line); border-top: 3px solid var(--acc); border-radius: 6px; padding: 20px 22px; box-shadow: var(--shadow); }
-.card > h2 { display: inline-block; margin: 0 0 12px; font: italic 900 20px/1.2 var(--display); letter-spacing: .5px; text-transform: uppercase; vertical-align: middle;
-  background: var(--chrome); -webkit-background-clip: text; background-clip: text; color: transparent; }
-.step { display: inline-grid; place-items: center; width: 26px; height: 26px; margin-right: 10px; border-radius: 4px;
-  background: var(--acc); color: #fff; font-weight: 700; font-size: 14px; vertical-align: middle; }
-h3 { margin: 18px 0 2px; font-size: 15px; }
-.sub { color: var(--dim); font-size: 13px; margin: 2px 0 10px; }
+body { margin: 0; background-color: var(--bg); color: var(--text); font: 15px/1.5 "Exo 2", system-ui, sans-serif;
+  background-image: linear-gradient(rgba(255,255,255,.055) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.055) 1px, transparent 1px);
+  background-size: 28px 28px; }
+a { color: var(--pink); } a:hover { color: #ff9a9d; }
+.chrome { background: var(--chrome); -webkit-background-clip: text; background-clip: text; color: transparent; font-style: italic;
+  font-weight: 900; text-transform: uppercase; filter: drop-shadow(2px 2px 0 var(--acc-dk)); }
+.mono { font-family: var(--mono); letter-spacing: 1px; }
 .hide { display: none !important; }
-button { font: inherit; color: var(--text); background: var(--soft); border: 1px solid var(--line); border-radius: 6px; padding: 8px 14px; cursor: pointer; }
-button:hover { border-color: var(--acc); }
-button:disabled { opacity: .5; cursor: default; border-color: var(--line); }
-button.primary { background: linear-gradient(180deg, #ff4a50, var(--acc) 55%, #a8141b); color: #fff; border-color: #ff4a50; font-weight: 700; padding: 10px 18px; text-transform: uppercase; letter-spacing: .5px; }
-button.small { padding: 4px 10px; font-size: 13px; }
-a.gh { color: var(--dim); font-size: 13px; text-decoration: none; padding: 4px 6px; }
-a.gh:hover { color: var(--text); }
-button.on { background: var(--acc); color: #fff; border-color: #ff4a50; }
-select, input[type=number] { font: inherit; color: var(--text); background: var(--soft); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; }
-.pill { display: inline-flex; align-items: center; gap: 8px; border-radius: 999px; padding: 6px 14px; font-size: 13px; }
-.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--dim); }
-.pill.ok .dot { background: var(--good); }
-.pill.err .dot { background: var(--bad); }
-.drop { display: block; border: 2px dashed var(--line); border-radius: 8px; padding: 26px; text-align: center; cursor: pointer; background: var(--soft); transition: border-color .15s, background .15s; }
-.drop:hover, .drop.over { border-color: var(--acc); background: var(--acc-soft); }
-.drop b { display: block; font-size: 16px; }
-.drop span { color: var(--dim); font-size: 13px; }
-.gamehead { display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 16px; }
-.gametitle { font: italic 900 22px/1.2 var(--display); }
-.progress { height: 8px; background: var(--soft); border-radius: 999px; overflow: hidden; margin-top: 12px; }
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 28px; padding: 16px 28px 14px; background: #000;
+  border-bottom: 6px solid var(--acc); box-shadow: 0 4px 0 #000, 0 6px 0 var(--acc), 0 9px 0 #000, 0 10px 0 var(--acc-dk); }
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand .chrome { font-size: 34px; line-height: 1; letter-spacing: 1px; }
+.badge16 { font: 11px var(--mono); padding: 3px 6px; border: 1px solid var(--acc); color: var(--pink); letter-spacing: 2px; }
+nav { display: flex; flex-wrap: wrap; gap: 2px; }
+nav button { background: none; border: 0; border-bottom: 3px solid transparent; color: var(--dim); padding: 10px 14px; cursor: pointer;
+  font: italic 600 15px "Exo 2", sans-serif; text-transform: uppercase; letter-spacing: 1px; min-height: 44px; }
+nav button:hover { color: var(--text); }
+nav button.on { color: #fff; font-weight: 800; border-bottom-color: var(--acc); }
+.grow { flex: 1; }
+.conn { display: flex; align-items: center; gap: 10px; font: 13px var(--mono); letter-spacing: 1px; background: none; border: 0; color: var(--text); cursor: pointer; }
+.conn .dot { width: 10px; height: 10px; background: var(--faint); }
+.conn.ok .dot { background: var(--good); box-shadow: 0 0 8px var(--good); }
+.conn.err .dot { background: var(--acc); }
+.statusbar { max-width: 1376px; margin: 18px auto 0; padding: 0 28px; display: flex; gap: 14px; align-items: center; min-height: 26px; }
+#status { font: 13px var(--mono); color: var(--dim); flex: 1; }
+#status.ok { color: var(--good); } #status.err { color: var(--pink); }
+.progress { width: 220px; height: 8px; background: var(--soft); border: 1px solid var(--line); }
 .progress div { height: 100%; width: 0; background: var(--acc); transition: width .15s; }
-#status { color: var(--dim); font-size: 13px; min-height: 20px; margin-top: 8px; }
-#status { font-family: ui-monospace, monospace; }
-#status.ok { color: var(--good); }
-#status.err { color: var(--bad); }
-.toggle { float: right; display: flex; gap: 6px; align-items: center; font-size: 14px; color: var(--dim); }
-.songs { display: grid; gap: 8px; }
-.songrow { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; }
-.songrow.playing { border-color: var(--acc); background: var(--acc-soft); }
-.songrow .t { flex: 1; min-width: 0; }
-.songrow .t b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.songrow .t span { color: var(--dim); font-size: 13px; }
-.badge { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 999px; background: var(--soft); color: var(--dim); margin-left: 4px; }
-.badge.warm { background: var(--warm-soft); color: var(--warm); }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
-.tile { text-align: left; border: 1px solid var(--line); border-radius: 6px; padding: 12px; background: var(--card); cursor: pointer; display: grid; gap: 2px; }
-.tile:hover { border-color: var(--acc); }
-.tile.sel { border-color: var(--acc); background: var(--acc-soft); }
-.tile .role { font-weight: 800; font-size: 16px; text-transform: uppercase; letter-spacing: .5px; }
-.tile .meta { color: var(--dim); font-size: 12px; }
-.tile .hear { justify-self: start; margin-top: 6px; }
-.pads { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; }
-.pad { aspect-ratio: 1.3; border-radius: 6px; border: 1px solid var(--line); background: var(--soft); display: grid; place-content: center; text-align: center; cursor: pointer; user-select: none; }
-.pad b { font-size: 16px; }
-.pad span { font-size: 12px; color: var(--dim); }
-.pad:active, .pad.hit { background: var(--warm); color: #fff; border-color: var(--warm); }
-.pad:active span, .pad.hit span { color: #fff; }
-.parts { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
-.parts button { display: grid; text-align: left; padding: 10px 16px; min-width: 130px; }
-.parts button span { font-size: 12px; opacity: .8; }
-.controls { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; font-size: 14px; }
-.controls label { display: flex; gap: 8px; align-items: center; color: var(--dim); }
-.controls input[type=range] { accent-color: var(--acc); }
+main { max-width: 1376px; margin: 0 auto; padding: 18px 28px 48px; }
+.tab { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-top: 3px solid var(--acc); border-radius: 4px; padding: 22px 24px;
+  box-shadow: 0 2px 14px rgba(0,0,0,.6); min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+.panel h2 { margin: 0; font-size: 24px; letter-spacing: 1px; }
+.phead { display: flex; flex-wrap: wrap; gap: 10px 16px; justify-content: space-between; align-items: center; }
+.sub { color: var(--dim); font-size: 13px; margin: 0; }
+.cap { font: 12px var(--mono); color: var(--dim); letter-spacing: 1px; text-transform: uppercase; }
+button.btn { min-height: 44px; padding: 0 16px; border: 1px solid var(--line2); background: #000; color: var(--text); cursor: pointer;
+  font: italic 600 14px "Exo 2", sans-serif; text-transform: uppercase; letter-spacing: 1px; }
+button.btn:hover { border-color: var(--acc); }
+button.btn:disabled { opacity: .45; cursor: default; border-color: var(--line); }
+button.btn.go { border-color: var(--acc-hi); background: linear-gradient(180deg, var(--acc-hi), var(--acc) 55%, #a8141b); color: #fff; font-weight: 800; font-size: 15px; }
+button.btn.danger { color: var(--pink); border-color: #5a1a1e; }
+button.btn.small { min-height: 34px; padding: 0 10px; font-size: 12px; }
+button.btn.on { border-color: var(--acc-hi); background: linear-gradient(180deg, #3a0e12, #1a0608); }
+select, input[type=text], input[type=number] { min-height: 44px; padding: 0 12px; background: #000; color: var(--text); border: 1px solid var(--line2); font: 15px "Exo 2", sans-serif; }
+label.field { display: flex; flex-direction: column; gap: 6px; font: 12px var(--mono); color: var(--dim); letter-spacing: 1px; }
+input[type=range] { accent-color: var(--acc); width: 100%; }
+.drop { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 28px; border: 2px dashed var(--line2); background: #08080a; cursor: pointer; text-align: center; }
+.drop.over { border-color: var(--acc); background: #1a0608; }
+.drop b { font-style: italic; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
+.list { display: flex; flex-direction: column; gap: 6px; max-height: 460px; overflow-y: auto; }
+.item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: var(--soft); border: 1px solid var(--line); border-left: 4px solid var(--acc); }
+.item.off { border-left-color: var(--line2); opacity: .6; }
+.item { flex-wrap: wrap; }
+.item input[type=text] { min-height: 34px; flex: 1 1 100px; min-width: 100px; max-width: 140px; padding: 0 8px; font-family: var(--mono); text-transform: uppercase; }
+.item .meta { font: 12px var(--mono); color: var(--dim); }
+.item input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--acc); }
+.row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+.banks { display: flex; gap: 6px; flex-wrap: wrap; }
+.banks button { min-height: 44px; padding: 0 14px; border: 1px solid var(--line2); background: #000; color: #fff; cursor: pointer; display: flex; gap: 10px; align-items: center; font: italic 800 15px "Exo 2", sans-serif; }
+.banks button span { font: 12px var(--mono); color: var(--dim); }
+.banks button.on { border-color: var(--acc-hi); background: linear-gradient(180deg, var(--acc-hi), var(--acc) 55%, #a8141b); }
+.banks button.on span { color: #ffe3e4; }
+.slots { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.slot { min-height: 60px; text-align: left; padding: 8px 10px; border: 1px solid var(--line); background: var(--soft); color: var(--text); cursor: pointer;
+  display: flex; flex-direction: column; justify-content: space-between; gap: 4px; font: 13px "Exo 2", sans-serif; min-width: 0; }
+.slot .n { display: flex; justify-content: space-between; font: 12px var(--mono); color: var(--dim); }
+.slot .t { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.slot.empty { background: transparent; border-style: dashed; } .slot.empty .t { color: var(--faint); font-weight: 400; }
+.slot.incoming { border-color: #8a6a1e; } .slot.incoming .t { color: var(--warn); }
+.slot.sel { border-color: var(--acc); background: linear-gradient(180deg, #3a0e12, #1a0608); } .slot.sel .n { color: #ff8a8e; }
+.algs { display: flex; gap: 6px; flex-wrap: wrap; }
+.algs button { width: 60px; height: 52px; border: 1px solid var(--line2); background: #000; color: var(--dim); cursor: pointer; display: grid; place-items: center; padding: 2px; font: 12px var(--mono); }
+.algs button.on { border-color: var(--acc); background: linear-gradient(180deg, #3a0e12, #1a0608); color: #ff8a8e; }
+.ops { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+.op { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.op .env { background: #000; border: 1px solid #23232a; background-image: linear-gradient(rgba(255,255,255,.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.06) 1px, transparent 1px); background-size: 20px 20px; }
+.sliders { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 14px; }
+.sl { display: flex; flex-direction: column; gap: 2px; font: 11px var(--mono); color: var(--dim); letter-spacing: 1px; }
+.sl > span { display: flex; justify-content: space-between; } .sl output { color: var(--text); }
+table.parts { border-collapse: collapse; width: 100%; }
+table.parts th { text-align: left; font: 12px var(--mono); color: var(--dim); letter-spacing: 1px; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+table.parts td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+table.parts select { min-height: 38px; width: 100%; }
+.tablewrap { overflow-x: auto; }
+.pads { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 8px; }
+.pad { min-height: 70px; border: 1px solid var(--line2); background: var(--soft); color: var(--text); display: grid; place-content: center; text-align: center; cursor: pointer; user-select: none; font: 13px var(--mono); }
+.pad b { font: italic 800 16px "Exo 2", sans-serif; }
+.pad.hit { background: var(--acc); border-color: var(--acc-hi); }
+.songrow { display: flex; align-items: center; gap: 12px; padding: 10px 12px; background: var(--soft); border: 1px solid var(--line); border-left: 4px solid var(--line2); }
+.songrow.playing { border-left-color: var(--acc); background: #1a0608; }
+.songrow .t { flex: 1; min-width: 0; } .songrow .t b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.warnb { font: 11px var(--mono); color: var(--warn); border: 1px solid #5a4a1e; padding: 1px 6px; margin-left: 6px; }
 .kbwrap { overflow-x: auto; padding-bottom: 4px; }
-.kb { position: relative; height: 150px; user-select: none; touch-action: none; margin: 0 auto; }
-.key { position: absolute; top: 0; border: 1px solid rgba(0, 0, 0, .25); border-radius: 0 0 7px 7px; display: flex; align-items: flex-end; justify-content: center; font-size: 10px; padding-bottom: 6px; }
-.key.w { background: var(--white-key); color: #8a93a6; height: 150px; z-index: 1; }
-.key.b { background: var(--black-key); height: 92px; z-index: 2; }
+.kb { position: relative; height: 130px; user-select: none; touch-action: none; }
+.key { position: absolute; top: 0; border: 1px solid #000; display: flex; align-items: flex-end; justify-content: center; font: 10px var(--mono); padding-bottom: 6px; }
+.key.w { background: #e4e6ec; color: #6e7380; height: 130px; z-index: 1; }
+.key.b { background: #0b0b0d; height: 80px; z-index: 2; }
 .key.down { background: var(--acc) !important; color: #fff; }
-details.card > summary { cursor: pointer; font: italic 900 16px var(--display); text-transform: uppercase; color: var(--dim); }
-details.card[open] > summary { margin-bottom: 12px; }
-.adv { display: grid; gap: 14px; }
-.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
-label.ctl { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center; font-size: 12px; color: var(--dim); }
-label.ctl input[type=range] { grid-column: 1 / 3; width: 100%; accent-color: var(--acc); }
-label.ctl output { color: var(--text); font-variant-numeric: tabular-nums; }
-.grid-global { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 16px; }
-.ops { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-top: 12px; }
-.op { border: 1px solid var(--line); border-radius: 6px; padding: 10px; display: grid; gap: 8px; }
-.op h3 { margin: 0; font-size: 13px; color: var(--warm); display: flex; justify-content: space-between; }
-.op h3 span { color: var(--dim); font-weight: normal; }
-.alg { font-family: ui-monospace, monospace; color: var(--dim); font-size: 12px; }
-table.list { border-collapse: collapse; width: 100%; font-size: 13px; }
-table.list th, table.list td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); }
-table.list th { color: var(--dim); font-weight: normal; }
-.help { display: grid; gap: 6px; }
-.help h3 { margin-top: 14px; color: var(--acc); text-transform: uppercase; letter-spacing: .5px; font-size: 14px; }
-.help h3:first-child { margin-top: 0; }
-.help p, .help ol { margin: 0 0 6px; }
-.help ol { padding-left: 20px; display: grid; gap: 4px; }
-.help td:first-child { width: 32%; color: var(--text); font-weight: 600; padding-right: 14px; }
-.help td { overflow-wrap: anywhere; }
-.help td { vertical-align: top; }
-@media (max-width: 600px) { .top, main { padding-left: 14px; padding-right: 14px; } .card { padding: 16px; } }
+.help h3 { color: var(--pink); text-transform: uppercase; letter-spacing: 1px; font-size: 15px; margin: 16px 0 4px; }
+.help table { border-collapse: collapse; width: 100%; font-size: 14px; }
+.help td, .help th { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.help th { font: 12px var(--mono); color: var(--dim); }
+@media (max-width: 700px) {
+  header, main, .statusbar { padding-left: 16px; padding-right: 16px; }
+  .slots { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .panel { padding: 16px; }
+}
 </style>
 </head>
 <body>
-<header class="top">
-  <div><div class="logo">OPN<span>-1</span></div><div class="tag">16-bit FM sound for the M-VAVE FM-1</div></div>
-  <div class="right">
-    <button id="pill" class="pill" title="MIDI connection (Advanced has the output)"><span class="dot"></span><span id="pilltext">Starting</span></button>
-    <button id="panic" class="small" title="Every note off">Panic</button>
-    <a class="gh" href="https://github.com/putchdev/opn-1" target="_blank" rel="noopener">GitHub</a>
-  </div>
+<header>
+  <div class="brand"><span class="chrome">OPN-1</span><span class="badge16">16-BIT FM</span></div>
+  <nav id="nav">
+    <button data-tab="library" class="on">Library</button>
+    <button data-tab="editor">Editor</button>
+    <button data-tab="parts">Parts</button>
+    <button data-tab="drums">Drums</button>
+    <button data-tab="songs">Songs</button>
+    <button data-tab="help">Help</button>
+  </nav>
+  <div class="grow"></div>
+  <button id="pill" class="conn" title="The MIDI port (Help has the details)"><span class="dot"></span><span id="pilltext">STARTING</span></button>
+  <a href="https://github.com/putchdev/opn-1" target="_blank" rel="noopener" class="mono" style="font-size:13px">GITHUB</a>
 </header>
+<div class="statusbar">
+  <div id="status"></div>
+  <div class="progress hide" id="prog"><div id="progbar"></div></div>
+</div>
 <main>
-  <section class="card">
-    <h2>Hear it</h2>
-    <p class="sub">A new song played on an FM-1 running OPN-1, with instruments from Sonic the Hedgehog.</p>
-    <audio controls preload="none" src="sample.mp3" style="width: 100%"></audio>
+  <!-- LIBRARY -->
+  <section class="tab" id="tab-library">
+    <div class="panel" style="flex: 1 1 420px">
+      <div class="phead"><h2 class="chrome">Import</h2><span class="cap">.opm patches · .vgm songs</span></div>
+      <label id="drop" class="drop">
+        <input type="file" id="files" accept=".opm,.vgm,.vgz" multiple hidden>
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#e8242c" stroke-width="2" stroke-linecap="square" aria-hidden="true"><path d="M12 16V4"></path><path d="m6 10 6-6 6 6"></path><path d="M4 20h16"></path></svg>
+        <b>Insert patches</b>
+        <span class="sub">Drop .opm files, or VGM songs from one game, or click to choose.</span>
+      </label>
+      <div id="importbox" class="hide" style="display:flex;flex-direction:column;gap:10px">
+        <div class="phead">
+          <span class="cap" id="importsum"></span>
+          <span class="row" style="gap:8px">
+            <button class="btn small" id="selall">All</button><button class="btn small" id="selnone">None</button>
+            <button class="btn small" id="clearimp">Clear</button>
+          </span>
+        </div>
+        <div class="list" id="imports"></div>
+        <label style="display:flex;gap:8px;align-items:center;font-size:13px;color:var(--dim)"><input type="checkbox" id="normalise" checked style="flex:none;width:18px;height:18px;accent-color:var(--acc)"> Raise each patch to full level (its loudest carrier at maximum)</label>
+        <div class="row" style="padding-top:12px;border-top:1px solid var(--line)">
+          <label class="field">BANK <select id="tbank"><option value="0">Bank 1</option><option value="1">Bank 2</option><option value="2">Bank 3</option><option value="3">Bank 4</option></select></label>
+          <label class="field">FROM SLOT <select id="tslot"></select></label>
+          <div class="grow sub" id="tnote" style="min-width:140px"></div>
+          <button class="btn go" id="sendimp">Send to FM-1</button>
+        </div>
+      </div>
+    </div>
+    <div class="panel" style="flex: 999 1 620px">
+      <div class="phead">
+        <h2 class="chrome">On the FM-1</h2>
+        <div class="banks" id="banks" role="tablist" aria-label="Banks"></div>
+      </div>
+      <div class="slots" id="slots"></div>
+      <div class="row" style="align-items:center">
+        <span class="sub grow" id="slotinfo">Read the FM-1 to see its library.</span>
+        <button class="btn" id="readlib">Read FM-1</button>
+        <button class="btn" id="editslot">Edit</button>
+        <button class="btn danger" id="clearslot">Empty slot</button>
+        <button class="btn" id="exportbank">Export .opm</button>
+        <button class="btn danger" id="clearbank">Clear bank</button>
+      </div>
+    </div>
+    <div class="panel" style="flex: 1 1 100%">
+      <div class="phead"><h2 class="chrome">Hear it</h2><span class="sub">A new song recorded from an FM-1 running OPN-1, with instruments from Sonic the Hedgehog.</span></div>
+      <audio controls preload="none" src="sample.mp3" style="width:100%"></audio>
+    </div>
   </section>
-  <details class="card" id="help">
-    <summary>How to use</summary>
-    <div class="help">
+
+  <!-- EDITOR -->
+  <section class="tab hide" id="tab-editor">
+    <div class="panel" style="flex: 1 1 100%">
+      <div class="row" style="align-items:center;gap:24px">
+        <div style="display:flex;flex-direction:column;gap:4px;min-width:220px">
+          <span class="cap" id="edwhere" style="color:var(--pink)"></span>
+          <input type="text" id="edname" maxlength="11" class="chrome" style="font-size:28px;min-height:48px;caret-color:#fff;background:none;border:0;border-bottom:1px solid var(--line2);padding:0;width:260px" aria-label="Patch name">
+        </div>
+        <label class="field">PART <select id="edpart"></select></label>
+        <label class="field">PATCH <select id="edslot" style="max-width:220px"></select></label>
+        <div style="display:flex;flex-direction:column;gap:6px"><span class="cap">ALGORITHM</span><div class="algs" id="algs"></div></div>
+        <div class="grow"></div>
+        <div class="row" style="gap:16px" id="edglobal"></div>
+        <div class="row" style="gap:8px">
+          <button class="btn" id="edrevert">Revert</button>
+          <button class="btn go" id="edsave">Save</button>
+        </div>
+      </div>
+    </div>
+    <div class="ops" id="ops" style="flex: 1 1 100%"></div>
+    <div class="panel" style="flex: 1 1 100%">
+      <div class="phead"><span class="cap">PLAY THE PART</span>
+        <span class="row" style="gap:8px;align-items:center"><button class="btn small" id="octdn">Oct -</button><b id="octv" class="mono">C3</b><button class="btn small" id="octup">Oct +</button></span></div>
+      <div class="kbwrap"><div class="kb" id="kb"></div></div>
+      <p class="sub">Changes play on the FM-1 as you make them. Save writes the patch to its slot and keeps it. Computer keys play too: Z to M and Q to U.</p>
+    </div>
+  </section>
+
+  <!-- PARTS -->
+  <section class="tab hide" id="tab-parts">
+    <div class="panel" style="flex: 1 1 100%">
+      <div class="phead">
+        <h2 class="chrome">Parts</h2>
+        <span class="row" style="gap:12px;align-items:flex-end">
+          <label class="field">MIDI MODE <select id="mode"><option value="0">Parts</option><option value="1">GenMDM</option><option value="2">Panel</option></select></label>
+          <button class="btn" id="readparts">Read FM-1</button>
+          <button class="btn go" id="keepparts">Keep</button>
+        </span>
+      </div>
+      <p class="sub">Six FM parts share the six FM voices. Parts on the same MIDI channel play together, so one can be a sound's attack, another its body, and a Release part its tail.</p>
+      <div class="tablewrap"><table class="parts" id="partstable"></table></div>
+    </div>
+  </section>
+
+  <!-- DRUMS -->
+  <section class="tab hide" id="tab-drums">
+    <div class="panel" style="flex: 1 1 100%">
+      <div class="phead"><h2 class="chrome">Drum kit</h2>
+        <span class="row" style="gap:8px"><button class="btn go" id="sendkit">Send kit</button></span></div>
+      <p class="sub" id="kitsub">Load VGM songs in the Library to find a game's sampled drums. MIDI channel 10 plays them, C2 the first.</p>
+      <div class="pads" id="pads"></div>
+    </div>
+    <div class="panel" style="flex: 1 1 100%">
+      <div class="phead"><h2 class="chrome">PSG shapes</h2>
+        <span class="row" style="gap:8px"><button class="btn go" id="sendpsg">Send shapes</button></span></div>
+      <p class="sub">The volume shapes the game gave its square waves and noise. Program change on channels 7 to 11 picks one.</p>
+      <div class="list" id="psgs"></div>
+    </div>
+  </section>
+
+  <!-- SONGS -->
+  <section class="tab hide" id="tab-songs">
+    <div class="panel" style="flex: 1 1 100%">
+      <div class="phead"><h2 class="chrome">Songs</h2>
+        <label class="row" style="gap:6px;align-items:center;font-size:14px;color:var(--dim)"><input type="checkbox" id="loop" checked> Loop</label></div>
+      <p class="sub">Load VGM files in the Library. A song streams to the FM-1 while it plays, so keep this tab open.</p>
+      <div class="list" id="songs" style="max-height:none"></div>
+      <span class="sub mono" id="linkinfo"></span>
+    </div>
+  </section>
+
+  <!-- HELP -->
+  <section class="tab hide" id="tab-help">
+    <div class="panel help" style="flex: 1 1 100%">
+      <h2 class="chrome">Help</h2>
       <h3>Getting started</h3>
       <ol>
-        <li>Install the OPN-1 firmware on the FM-1 first: see
-          <a href="https://github.com/putchdev/opn-1#installing-the-firmware" target="_blank" rel="noopener">installing the firmware</a>.</li>
+        <li>Install the OPN-1 firmware on the FM-1: see <a href="https://github.com/putchdev/opn-1#installing-the-firmware" target="_blank" rel="noopener">installing the firmware</a>.</li>
         <li>Plug the FM-1 in with USB and open this page in Chrome or Edge. Allow MIDI when the browser asks.</li>
-        <li>The pill at the top right should say <b>FM-1 connected</b>. If it names another device, choose the FM-1
-          (it shows as <b>OPN-1 FM-1</b>) under Advanced, MIDI output.</li>
-        <li>Drop some VGM or VGZ files from one game into <b>Load a game</b>. Several songs from the same game give the
-          most sounds.</li>
-        <li>Press <b>Send sounds to FM-1</b>. The FM-1 keeps them, even after it is switched off, until you send another
-          game's sounds.</li>
+        <li>In the Library, drop .opm patch files or VGM songs, tick the patches you want, pick a bank and slot, and press Send to FM-1.</li>
+        <li>Turn PRESETS on the FM-1 to step through them. Parts sets which MIDI channel plays what.</li>
       </ol>
-      <p class="sub">A fresh FM-1 has no sounds of its own. Until you send some, the FM parts are silent.</p>
-      <p class="sub">Installing OPN-1 on your FM-1 is done at your own risk. It comes with no warranty, and its authors
-        accept no responsibility for damaged or unusable devices.</p>
-
-      <h3>Songs</h3>
-      <p>Press play on a song to hear it on the FM-1. The song is streamed while it plays, so keep this tab open.
-        Nothing is stored on the device. While a song plays, the FM-1's keys and the knobs do not change what you hear;
-        knob changes apply once it stops.</p>
-
+      <p class="sub">Installing OPN-1 is done at your own risk. It comes with no warranty, and its authors accept no responsibility for damaged or unusable devices.</p>
+      <h3>MIDI port</h3>
+      <label class="field" style="max-width:360px">MIDI OUTPUT <select id="out"><option>none</option></select></label>
       <h3>On the FM-1</h3>
-      <table class="list">
+      <table>
         <tr><th>Control</th><th>What it does</th></tr>
-        <tr><td>SELECT knob</td><td>Picks the part the keys play: POLY (up to six FM notes), FM 1 to 6, PSG 1 to 3,
-          NOISE or DRUMS</td></tr>
-        <tr><td>PRESETS knob</td><td>Picks the instrument (or the square-wave shape on a PSG part, or the game's noise sound on
-          NOISE)</td></tr>
-        <tr><td>OCT buttons</td><td>Octave down and up</td></tr>
-        <tr><td>ALGORITHM knob</td><td>How the four operators connect, 1 to 8: the biggest change to a sound</td></tr>
-        <tr><td>KNOB 1 to 4</td><td>Whatever the screen shows above them, set by the buttons below</td></tr>
-        <tr><td>HOME</td><td>Sound: brightness, attack, release, feedback</td></tr>
-        <tr><td>EDIT</td><td>Tone of one operator: level, multiplier, detune, second decay. Press again for the next
-          operator</td></tr>
-        <tr><td>ENV</td><td>Envelope of one operator: attack, decay, sustain, release. Press again for the next
-          operator</td></tr>
-        <tr><td>LFO</td><td>The chip's wobble: rate (shared by all channels), pitch depth, volume depth, which operators
-          it moves</td></tr>
-        <tr><td>FX</td><td>Vibrato depth, speed and delay, and Double (POLY plays each note twice, slightly detuned,
-          for a thicker sound)</td></tr>
-        <tr><td>ARP</td><td>Arpeggiator on (press again to turn it off): mode, tempo, octaves, note length</td></tr>
-        <tr><td>GLO</td><td>Key velocity, bend range, MIDI mode, tuning</td></tr>
-        <tr><td>SEL</td><td>Next operator on EDIT and ENV, otherwise the next part</td></tr>
-        <tr><td>SAVE</td><td>Keeps the changed instrument, replacing the original</td></tr>
-        <tr><td>SEQ</td><td>Shows what every channel is playing: note, level and instrument. Opens by itself during a
-          song</td></tr>
-        <tr><td>REC</td><td>Grabs the sounds the channels are playing right now (for example from a song) onto FM 1 to 6,
-          ready to play</td></tr>
-        <tr><td>PLAY</td><td>Stops the song</td></tr>
+        <tr><td>SELECT</td><td>Picks the part: PART 1 to 6, PSG 1 to 3, NOISE or DRUMS</td></tr>
+        <tr><td>PRESETS</td><td>Steps the part through the library's slots, skipping empty ones</td></tr>
+        <tr><td>ALGORITHM</td><td>How the four operators connect</td></tr>
+        <tr><td>HOME, LFO, FX, ARP</td><td>What the four knobs edit</td></tr>
+        <tr><td>EDIT, ENV</td><td>One operator large, or all four envelopes. Again for the next operator</td></tr>
+        <tr><td>GLO</td><td>Velocity, bend, MIDI mode, tuning. Again: the parts</td></tr>
+        <tr><td>SAVE</td><td>Keeps the edited sound in its slot, and the parts</td></tr>
+        <tr><td>SEQ, REC, PLAY</td><td>The channel monitor, grab what is playing, stop a song</td></tr>
       </table>
-      <p class="sub">A <b>*</b> after an instrument's name means it has changes you have not saved. To undo them, turn
-        PRESETS one step away and back. After SAVE the original is replaced; send the game's sounds again to get it
-        back.</p>
-
-      <h3>Playing from a MIDI keyboard or DAW</h3>
-      <p>Connect over USB, or to the FM-1's TRS MIDI input with a TRS to MIDI cable. In the GLO page, MIDI mode <b>PANEL</b> makes any channel play the part on the FM-1's screen, like its own
-        keys. <b>GENMDM</b> (the default) gives each chip channel its own MIDI channel:</p>
-      <table class="list">
-        <tr><th>MIDI channel</th><th>Plays</th></tr>
-        <tr><td>1 to 6</td><td>FM channels 1 to 6, one note each. Program change picks the instrument</td></tr>
-        <tr><td>7 to 9</td><td>Square waves (PSG) 1 to 3. Program change picks the shape</td></tr>
-        <tr><td>10</td><td>The game's drums (C2 is the first), or noise if no drums were sent</td></tr>
-        <tr><td>11</td><td>Noise: hi-hats and effects</td></tr>
-        <tr><td>15, 16</td><td>Used by this page to talk to the FM-1: leave them free</td></tr>
-      </table>
-      <p class="sub">FM channels also take GenMDM's control changes for every chip setting; the Patch editor under
-        Advanced sends them.</p>
-
       <h3>If something goes wrong</h3>
-      <table class="list">
-        <tr><th>You see</th><th>Try</th></tr>
-        <tr><td>MIDI not allowed</td><td>Allow MIDI for this page in the browser's site settings, then reload. Open the
-          page from localhost or https, not as a file</td></tr>
-        <tr><td>FM-1 not found, or "did not take the patch"</td><td>Check the cable, and that Advanced, MIDI output is
-          the FM-1</td></tr>
-        <tr><td>"The stream fell behind"</td><td>The link could not keep up for a moment. Close other MIDI apps and
-          press SEQ to hide the channel display while the song plays</td></tr>
-        <tr><td>The FM-1 says NO SOUNDS</td><td>Load a game and press Send sounds to FM-1</td></tr>
-        <tr><td>Notes stuck on</td><td>Press Panic at the top right</td></tr>
+      <table>
+        <tr><td>MIDI not allowed</td><td>Allow MIDI for this page in the browser's site settings and reload. Open it from https or localhost.</td></tr>
+        <tr><td>FM-1 not found</td><td>Check the cable, and the MIDI output above.</td></tr>
+        <tr><td>Notes stuck on</td><td><button class="btn small" id="panic">Panic</button></td></tr>
       </table>
     </div>
-  </details>
-
-  <section class="card">
-    <span class="step">1</span><h2>Load a game</h2>
-    <label id="drop" class="drop">
-      <input type="file" id="files" accept=".vgm,.vgz" multiple hidden>
-      <b>Drop VGM or VGZ files here</b>
-      <span>or click to choose. Several songs from one game give the most sounds.</span>
-    </label>
-    <div id="gamebox" class="hide">
-      <div class="gamehead">
-        <div><div id="gametitle" class="gametitle"></div><div id="gamesub" class="sub"></div></div>
-        <button id="sendsounds" class="primary">Send sounds to FM-1</button>
-      </div>
-      <div class="progress hide" id="prog"><div id="progbar"></div></div>
-    </div>
-    <div id="status"></div>
   </section>
-
-  <section class="card hide" id="songcard">
-    <label class="toggle"><input type="checkbox" id="loop" checked> Loop</label>
-    <span class="step">2</span><h2>Songs</h2>
-    <p class="sub">Streamed to the FM-1 while they play: keep this tab open.</p>
-    <div id="songs" class="songs"></div>
-  </section>
-
-  <section class="card hide" id="soundcard">
-    <span class="step">3</span><h2>Sounds</h2>
-    <p class="sub" id="soundsub"></p>
-    <h3>Instruments</h3>
-    <p class="sub">Pick one to play it from the keyboard below, or from the FM-1's own keys in POLY.</p>
-    <div id="insts" class="grid"></div>
-    <button id="moreinsts" class="small hide" style="margin-top:10px"></button>
-    <div id="drumwrap">
-      <h3>Drums</h3>
-      <p class="sub">Tap a pad to hear it on the FM-1 (once the sounds are sent). Shift-tap to hear it here.</p>
-      <div id="pads" class="pads"></div>
-    </div>
-    <div id="noisewrap">
-      <h3>Hi-hats and noise</h3>
-      <p class="sub">The noise sounds the game shaped for its percussion. Pick one for the Hi-hats part.</p>
-      <div id="noises" class="grid"></div>
-    </div>
-  </section>
-
-  <section class="card">
-    <span class="step">4</span><h2>Play</h2>
-    <div class="parts" id="parts"></div>
-    <div class="controls">
-      <button id="octdn" class="small">Octave down</button><b id="octv">C3</b><button id="octup" class="small">Octave up</button>
-      <label>Velocity <input id="vel" type="range" min="1" max="127" value="127"></label>
-      <label>Bend <input id="bend" type="range" min="-8192" max="8191" value="0"></label>
-    </div>
-    <div class="kbwrap"><div class="kb" id="kb"></div></div>
-    <p class="sub">Computer keys play too: Z to M and Q to U, the rows above for sharps. On the FM-1 itself, SELECT picks
-      POLY, DRUMS, NOISE or a PSG part, and PRESETS the sound. The four knobs and ALGORITHM shape it: HOME, EDIT
-      and ENV (press again for the next operator), LFO, FX and GLO choose what the knobs do, ARP arpeggiates, and SAVE
-      keeps the changed sound. SEQ shows what every channel is playing (it opens by itself during a song), and REC
-      grabs the channels' sounds onto FM 1 to 6.</p>
-  </section>
-
-  <details class="card" id="advanced">
-    <summary>Advanced</summary>
-    <div class="adv">
-      <div class="row">
-        <label>MIDI output <select id="out"><option>none</option></select></label>
-        <label><input type="checkbox" id="normalise" checked> Normalise instrument levels</label>
-        <span class="sub" id="linkinfo"></span>
-      </div>
-      <div>
-        <h3>Patch editor</h3>
-        <p class="sub">One FM channel at a time, with GenMDM's CCs. Instruments sent from a game start here too.</p>
-        <div class="row" id="edchans"></div>
-        <div class="row" style="margin:12px 0">
-          <select id="preset"></select>
-          <button id="patchsend" class="small">Send whole patch</button>
-          <span class="alg" id="algdesc"></span>
-        </div>
-        <div class="grid-global" id="global"></div>
-        <div class="ops" id="ops"></div>
-      </div>
-      <div id="squarewrap">
-        <h3>Square-wave shapes</h3>
-        <p class="sub">The volume shapes the game gave its square-wave notes. Many are near alike: the chip has nothing else to vary.</p>
-        <table class="list" id="squares"></table>
-      </div>
-    </div>
-  </details>
 </main>
 <script>
 "use strict";
-// ---- an empty patch (the FM-1 has no built-in sounds: only the sound set sent from here)
-const EMPTY = { name: "EMPTY", alg: 0, fb: 0, ams: 0, pms: 0,
-                op: [0, 1, 2, 3].map(() => ({ dt: 0, mul: 0, tl: 127, ks: 0, ar: 0, am: 0, d1r: 0, d2r: 0, sl: 0, rr: 0 })) };
-const ALGS = ["1>2>3>4", "(1+2)>3>4", "(1+(2>3))>4", "((1>2)+3)>4", "(1>2)+(3>4)", "1>(2+3+4)", "(1>2)+3+4", "1+2+3+4"];
 const CARRIERS = [8, 8, 8, 8, 10, 14, 14, 15];
-
-// ---- the parameters: CC, bits of range (the value goes out shifted to the top of 0..127)
-const OPPARAMS = [
-  { k: "tl", name: "Attenuation (TL, 0 = loudest)", cc: 16, max: 127, invert: true }, { k: "mul", name: "Multiple", cc: 20, max: 15 },
-  { k: "dt", name: "Detune", cc: 24, max: 7 }, { k: "ks", name: "Rate scale", cc: 39, max: 3 },
-  { k: "ar", name: "Attack", cc: 43, max: 31 }, { k: "d1r", name: "Decay 1", cc: 47, max: 31 },
-  { k: "d2r", name: "Decay 2", cc: 51, max: 15 }, { k: "sl", name: "Sustain lvl", cc: 55, max: 15 },
-  { k: "rr", name: "Release", cc: 59, max: 15 }, { k: "am", name: "AM", cc: 70, max: 1 },
-];
-const CH = ["FM 1", "FM 2", "FM 3", "FM 4", "FM 5", "FM 6", "PSG 1", "PSG 2", "PSG 3", "NOISE"];
+const OPOFF_NAMES = ["Op 1", "Op 2", "Op 3", "Op 4"];
+const NSLOT = 128, BANK_SLOTS = 32;
 const state = {
-  out: null, oct: 3, vel: 127, part: "inst", edCh: 0, normalise: true,
-  fm: Array.from({ length: 6 }, () => ({ preset: 0, pan: 3, patch: structuredClone(EMPTY) })),
-  lfo: { on: 0, speed: 0 }, held: new Map(),
-  songs: [], found: [], drums: [], psgs: [], set: [], psgSent: [], kitSent: 0, inst: -1, noise: -1, allInsts: false,
+  out: null, oct: 3, vel: 110,
+  lib: Array(NSLOT).fill(undefined),            // the FM-1's slots as read: undefined unknown, null empty, else a patch
+  bank: 0, sel: -1,                             // the bank shown, the slot picked
+  imports: [],                                  // patches to send: { name, regs, extra, src, on }
+  parts: Array.from({ length: 6 }, (_, p) => ({ chan: p, level: 127, trig: 0, time: 10, slot: 0 })), mode: 0,
+  ed: { part: 0, patch: null, slot: 0 },
+  songs: [], found: [], drums: [], psgs: [],
 };
 const $ = id => document.getElementById(id);
 function send(bytes) { if (state.out) state.out.send(bytes); }
-function cc(ch, n, v) { send([0xB0 | ch, n, Math.max(0, Math.min(127, v | 0))]); }
-function scaled(v, max) { return v << (7 - Math.round(Math.log2(max + 1))); }   // e.g. 0..31 -> v << 2
 function setStatus(t, cls) { const s = $("status"); s.textContent = t; s.className = cls || ""; }
 function setProgress(f) {                       // 0..1, or null to hide
   $("prog").classList.toggle("hide", f === null);
@@ -344,9 +328,20 @@ function setProgress(f) {                       // 0..1, or null to hide
 }
 const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+const slotName = s => `B${(s >> 5) + 1} ${String((s & 31) + 1).padStart(2, "0")}`;
+function el(tag, props = {}, ...kids) {         // a DOM element, its properties, its children
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (k === "class") e.className = v; else if (k === "style") e.style.cssText = v;
+    else if (k.startsWith("on")) e[k] = v; else if (k in e) e[k] = v; else e.setAttribute(k, v);
+  }
+  for (const k of kids.flat()) if (k != null) e.append(k);
+  return e;
+}
 
-// ---- MIDI: the FM-1 found by name; the pill says how it stands
-function setConn(ok, text) { $("pill").className = "pill " + (ok ? "ok" : "err"); $("pilltext").textContent = text; }
+// ---- MIDI: the FM-1 found by name
+function setConn(ok, text) { $("pill").className = "conn " + (ok ? "ok" : "err"); $("pilltext").textContent = text.toUpperCase(); }
 async function startMidi() {
   if (!navigator.requestMIDIAccess) { setConn(false, "Needs Chrome or Edge"); return; }
   try {
@@ -358,128 +353,24 @@ async function startMidi() {
       for (const o of outs) sel.add(new Option(o.name, o.id));
       const fm1 = outs.find(o => o.id === prev) || outs.find(o => /fm-?1|felucca/i.test(o.name)) || outs[0];
       if (fm1) sel.value = fm1.id;
+      const was = state.out;
       state.out = fm1 || null;
-      const ins = [...access.inputs.values()];      // the FM-1's answers: the input with the output's name
+      const ins = [...access.inputs.values()];
       const inp = fm1 && (ins.find(i => i.name === fm1.name) || ins.find(i => /fm-?1|felucca/i.test(i.name)));
       for (const i of ins) i.onmidimessage = i === inp ? e => song.reply(e.data) : null;
-      if (!fm1) setConn(false, "FM-1 not found: plug it in");
+      if (!fm1) setConn(false, "FM-1 not found");
       else setConn(true, /fm-?1|felucca/i.test(fm1.name) ? "FM-1 connected" : "Sending to " + fm1.name);
+      if (fm1 && fm1 !== was) setTimeout(() => readAll().catch(() => {}), 300);
     };
     $("out").onchange = () => { state.out = access.outputs.get($("out").value) || null; fill(); };
     access.onstatechange = fill;
     fill();
   } catch (e) {
     setConn(false, "MIDI not allowed");
-    setStatus("The browser refused MIDI. Open the page from localhost and allow MIDI when asked.", "err");
+    setStatus("The browser refused MIDI. Open the page from https or localhost and allow MIDI when asked.", "err");
   }
 }
-$("pill").onclick = () => { $("advanced").open = true; $("advanced").scrollIntoView({ behavior: "smooth" }); };
-
-// ---- the parts the keyboard plays: each a set of MIDI channels (the page shares notes out among them)
-const PARTS = {
-  inst: { label: "Instrument", sub: "FM, up to six notes", chans: () => state.kitSent ? [0, 1, 2, 3, 4] : [0, 1, 2, 3, 4, 5] },
-  drums: { label: "Drums", sub: "the game's kit", chans: () => [9] },
-  hats: { label: "Hi-hats", sub: "noise", chans: () => [10] },
-  square: { label: "Square wave", sub: "PSG, three notes", chans: () => [6, 7, 8] },
-};
-function buildParts() {
-  $("parts").innerHTML = "";
-  for (const [id, p] of Object.entries(PARTS)) {
-    const b = document.createElement("button");
-    b.className = state.part === id ? "on" : "";
-    b.innerHTML = `<b>${p.label}</b><span>${p.sub}</span>`;
-    b.onclick = () => setPart(id);
-    $("parts").appendChild(b);
-  }
-}
-function setPart(id) {
-  for (const n of [...state.held.keys()]) noteOff(n);
-  state.part = id;
-  if (id === "drums") { state.oct = 2; buildKeys(); }      // (the kit starts at C2)
-  buildParts();
-}
-
-// ---- notes: shared out among the part's channels, a free one first, else the oldest
-let order = 0;
-function noteOn(note) {
-  if (note < 0 || note > 127 || state.held.has(note)) return;
-  const chans = PARTS[state.part].chans(), busy = new Map([...state.held.values()].map(h => [h.ch, h.at]));
-  const ch = chans.find(c => !busy.has(c)) ?? chans.reduce((a, c) => busy.get(c) < busy.get(a) ? c : a, chans[0]);
-  for (const [n, h] of state.held) if (h.ch === ch) noteOff(n);
-  state.held.set(note, { ch, at: order++ });
-  send([0x90 | ch, note, state.vel]);
-  keyEl(note)?.classList.add("down");
-}
-function noteOff(note) {
-  const h = state.held.get(note);
-  if (!h) return;
-  send([0x80 | h.ch, note, 0]);
-  state.held.delete(note);
-  keyEl(note)?.classList.remove("down");
-}
-function panic() {
-  for (const n of [...state.held.keys()]) noteOff(n);
-  for (let ch = 0; ch < 11; ch++) for (let n = 0; n < 128; n++) send([0x80 | ch, n, 0]);
-}
-$("panic").onclick = panic;
-
-// ---- the keyboard: three octaves from state.oct
-const NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-const isBlack = n => [1, 3, 6, 8, 10].includes(n % 12);
-function keyEl(note) { return document.querySelector(`.key[data-n="${note}"]`); }
-function buildKeys() {
-  const kb = $("kb"), first = 12 * (state.oct + 1), count = 37, W = 36;
-  kb.innerHTML = "";
-  let x = 0;
-  for (let n = first; n < first + count; n++) {
-    const el = document.createElement("div");
-    el.dataset.n = n;
-    if (isBlack(n)) { el.className = "key b"; el.style.left = (x - 12) + "px"; el.style.width = "24px"; }
-    else { el.className = "key w"; el.style.left = x + "px"; el.style.width = W + "px"; x += W; if (n % 12 === 0) el.textContent = "C" + (n / 12 - 1); }
-    if (state.held.has(n)) el.classList.add("down");
-    kb.appendChild(el);
-  }
-  kb.style.width = x + "px";
-  $("octv").textContent = "C" + state.oct;
-}
-const pointerNote = new Map();
-$("kb").addEventListener("pointerdown", e => {
-  const k = e.target.closest(".key"); if (!k) return;
-  $("kb").setPointerCapture(e.pointerId);
-  pointerNote.set(e.pointerId, +k.dataset.n); noteOn(+k.dataset.n);
-});
-$("kb").addEventListener("pointermove", e => {
-  if (!pointerNote.has(e.pointerId)) return;
-  const k = document.elementFromPoint(e.clientX, e.clientY)?.closest(".key");
-  const n = k ? +k.dataset.n : null, prev = pointerNote.get(e.pointerId);
-  if (n !== prev) { noteOff(prev); if (n !== null) { noteOn(n); pointerNote.set(e.pointerId, n); } }
-});
-const endPointer = e => { if (pointerNote.has(e.pointerId)) { noteOff(pointerNote.get(e.pointerId)); pointerNote.delete(e.pointerId); } };
-$("kb").addEventListener("pointerup", endPointer);
-$("kb").addEventListener("pointercancel", endPointer);
-const KEYMAP = { z: 0, s: 1, x: 2, d: 3, c: 4, v: 5, g: 6, b: 7, h: 8, n: 9, j: 10, m: 11, ",": 12,
-                 q: 12, 2: 13, w: 14, 3: 15, e: 16, r: 17, 5: 18, t: 19, 6: 20, y: 21, 7: 22, u: 23, i: 24 };
-const kbdHeld = new Map();
-addEventListener("keydown", e => {
-  if (e.repeat || e.metaKey || e.ctrlKey || e.target.matches("input, select")) return;
-  const off = KEYMAP[e.key.toLowerCase()];
-  if (off === undefined) return;
-  const n = 12 * (state.oct + 1) + off;
-  kbdHeld.set(e.key.toLowerCase(), n); noteOn(n);
-});
-addEventListener("keyup", e => {
-  const n = kbdHeld.get(e.key.toLowerCase());
-  if (n !== undefined) { noteOff(n); kbdHeld.delete(e.key.toLowerCase()); }
-});
-addEventListener("blur", () => { for (const n of kbdHeld.values()) noteOff(n); kbdHeld.clear(); });
-$("octdn").onclick = () => { if (state.oct > 0) { state.oct--; buildKeys(); } };
-$("octup").onclick = () => { if (state.oct < 7) { state.oct++; buildKeys(); } };
-$("vel").oninput = e => { state.vel = +e.target.value; };
-$("bend").oninput = e => { const v = +e.target.value + 8192; for (const ch of PARTS[state.part].chans()) send([0xE0 | ch, v & 127, v >> 7]); };
-const bendHome = () => { $("bend").value = 0; for (const ch of PARTS[state.part].chans()) send([0xE0 | ch, 0, 64]); };
-$("bend").addEventListener("pointerup", bendHome);
-$("bend").addEventListener("keyup", bendHome);
-$("normalise").onchange = e => { state.normalise = e.target.checked; };
+$("pill").onclick = () => showTab("help");
 
 // ---- the song transfer and the extraction (unchanged from the tested page)
 const BANK_MAX = 128 * 1024, RING = 128 * 1024, KIT_MAX = 48 * 1024;
@@ -794,35 +685,6 @@ function regsToPatch(v, name) {                 // as the FM-1's patch_from_regs
   });
   return { name, alg: v[0] & 7, fb: v[0] >> 3 & 7, ams: v[1] >> 4 & 3, pms: v[1] & 7, op };
 }
-async function sendPatch(target, regs, name = "", extra = [0, 0, 0, 0, 0]) {   // 35 values and their sum, again until taken
-  const v = regs.concat(extra), chars = [...name.slice(0, 11)].map(c => c.charCodeAt(0) & 127);   // (extra: LFO, octave, vibrato)
-  if (state.normalise) {                 // the loudest carrier at full level, the others as they were to it
-    const car = CARRIERS[v[0] & 7], tls = [0, 1, 2, 3].filter(k => car >> k & 1).map(k => v[3 + 7 * k] & 127);
-    const lift = Math.min(...tls);
-    for (let k = 0; k < 4; k++) if (car >> k & 1) v[3 + 7 * k] = (v[3 + 7 * k] & 127) - lift;
-  }
-  v[1] |= 0xC0;                                 // both sides (the Stereo control moves it)
-  const sum = (v.reduce((a, x) => a + x, 0) + chars.reduce((a, x) => a + x, 0)) & 0x3FFF, msg = [0xBF, 0x50, target];
-  for (const c of chars) msg.push(0xBF, 0x59, c);
-  for (const x of v) msg.push(0xBF, 0x52, x & 127, 0xBF, 0x53, x >> 7);
-  msg.push(0xBF, 0x54, sum & 127, 0xBF, 0x55, sum >> 7);
-  for (let tries = 0; tries < 10; tries++) {
-    const res = song.wait("patch", () => true, 300);
-    send(msg);
-    try { if (await res) break; } catch (e) { /* lost: again */ }
-    if (tries === 9) throw new Error("the FM-1 did not take the patch");
-  }
-  for (let ch = 0; ch < 6; ch++)                 // the editor shows what the FM-1 has now
-    if (target === 6 || target === ch) { state.fm[ch].patch = regsToPatch(v, name || "FROM SONG"); state.fm[ch].pan = v[1] >> 6; }
-  if (target < 16 && extra[0] & 0x80) { state.lfo.on = 1; state.lfo.speed = extra[0] & 7; }   // (its song's LFO, now on the FM-1)
-  if (target < 16) buildEditor();
-  return v.slice(0, 30);
-}
-function homeKeys(p) {                          // the page's keyboard to where the song played this instrument
-  if (p.lo > p.hi) return;
-  state.oct = Math.max(0, Math.min(7, Math.floor(p.lo / 12) - 1));
-  buildKeys();
-}
 // ---- the drum kit: each distinct DAC hit in the songs, its rate from its timing (0x8n runs) or its stream's
 function extractDrums(b, found, file) {         // into found (the sound's bytes -> entry), merging songs
   const ver = u32(b, 8), start = ver >= 0x150 && u32(b, 0x34) ? 0x34 + u32(b, 0x34) : 0x40;
@@ -1038,45 +900,210 @@ async function sendPsg(k, e) {                  // one PSG instrument, again unt
   throw new Error("the FM-1 did not take PSG instrument " + (k + 1));
 }
 
-// ---- loading a game: every file read once; its songs listed, its sounds extracted and merged
-const ROLES = [[48, "Bass"], [60, "Low"], [72, "Mid"], [84, "High"], [128, "Very high"]];
-function role(p) {
-  if (p.lo > p.hi) return "Instrument";
-  if (p.lo === p.hi) return "Percussion";      // (played at one note only: a drum made on FM)
-  return ROLES.find(([top]) => (p.lo + p.hi) / 2 < top)[1];
+
+// ---- the FM-1's answers for the library and the parts (the transfers' are the engine's, above)
+const rx = { slot: null, part: null };
+const baseReply = song.reply.bind(song);
+song.reply = d => {
+  if (d[0] === 0xBF) {
+    const c = d[1], v = d[2];
+    if (c === 0x3E || c === 0x3F) song.resolve("slotw", { s: v, ok: c === 0x3E });
+    else if (c === 0x3D) song.resolve("cleared", v);
+    else if (c === 0x30) rx.slot = { s: v, name: "", vals: [], lo: 0, sum: 0 };
+    else if (c === 0x31 && rx.slot) rx.slot.name += String.fromCharCode(v);
+    else if (c === 0x32 && rx.slot) rx.slot.lo = v;
+    else if (c === 0x33 && rx.slot) rx.slot.vals.push(rx.slot.lo | v << 7);
+    else if (c === 0x34 && rx.slot) rx.slot.sum = v;
+    else if (c === 0x35 && rx.slot) {
+      const r = rx.slot, sum = r.sum | v << 7;
+      rx.slot = null;
+      const want = ([...r.name].reduce((a, ch) => a + ch.charCodeAt(0), 0) + r.vals.reduce((a, x) => a + x, 0)) & 0x3FFF;
+      if (r.vals.length === 35 && sum === want)
+        song.resolve("slot", { s: r.s, patch: { name: r.name, regs: r.vals.slice(0, 30), extra: r.vals.slice(30) } });
+    } else if (c === 0x36) song.resolve("slot", { s: v, patch: null });
+    else if (c >= 0x28 && c <= 0x2D) partMoved(c - 0x28, v);
+    else if (c === 0x20) rx.part = { p: v };
+    else if (c >= 0x21 && c <= 0x26 && rx.part) rx.part[c] = v;
+    else if (c === 0x2F) {
+      if (rx.part && rx.part.p === v && rx.part[0x26] !== undefined) { const r = rx.part; rx.part = null; song.resolve("partread", r); }
+      song.resolve("partok", v);
+    }
+  }
+  baseReply(d);
+};
+
+// ---- patches: { name, regs (B0, B4, then 7 per operator O1..O4), extra (LFO, octave, vibrato depth, rate, delay) }
+function decode(p) {
+  const v = p.regs;
+  return { name: p.name, alg: v[0] & 7, fb: v[0] >> 3 & 7, ams: v[1] >> 4 & 3, pms: v[1] & 7, extra: p.extra.slice(),
+    op: [0, 1, 2, 3].map(k => { const r = v.slice(2 + 7 * k, 9 + 7 * k);
+      return { dt: r[0] >> 4 & 7, mul: r[0] & 15, tl: r[1] & 127, ks: r[2] >> 6, ar: r[2] & 31, am: r[3] >> 7, d1r: r[3] & 31,
+               d2r: r[4] & 31, sl: r[5] >> 4, rr: r[5] & 15, ssg: r[6] & 15 }; }) };
 }
+function encode(e) {
+  const regs = [(e.fb & 7) << 3 | (e.alg & 7), 0xC0 | (e.ams & 3) << 4 | (e.pms & 7)];
+  for (const o of e.op) regs.push((o.dt & 7) << 4 | (o.mul & 15), o.tl & 127, (o.ks & 3) << 6 | (o.ar & 31), (o.am & 1) << 7 | (o.d1r & 31),
+                                  o.d2r & 31, (o.sl & 15) << 4 | (o.rr & 15), o.ssg & 15);
+  return { name: e.name, regs, extra: e.extra.slice() };
+}
+function normalised(p) {                        // the loudest carrier at full level, the others as they were to it
+  const v = p.regs.slice(), car = CARRIERS[v[0] & 7], ks = [0, 1, 2, 3].filter(k => car >> k & 1);
+  const lift = Math.min(...ks.map(k => v[3 + 7 * k] & 127));
+  for (const k of ks) v[3 + 7 * k] = (v[3 + 7 * k] & 127) - lift;
+  return { ...p, regs: v };
+}
+const cleanName = n => [...String(n).toUpperCase()].filter(c => c >= " " && c <= "~").join("").slice(0, 11).trim() || "PATCH";
+function patchMsg(begin, target, p) {           // the patch frame (docs/MIDI.md 3.1)
+  const v = p.regs.concat(p.extra).map(x => x & 255), chars = [...cleanName(p.name)].map(c => c.charCodeAt(0));
+  v[1] |= 0xC0;
+  const sum = (v.reduce((a, x) => a + x, 0) + chars.reduce((a, x) => a + x, 0)) & 0x3FFF, m = [0xBF, begin, target];
+  for (const c of chars) m.push(0xBF, 0x59, c);
+  for (const x of v) m.push(0xBF, 0x52, x & 127, 0xBF, 0x53, x >> 7);
+  m.push(0xBF, 0x54, sum & 127, 0xBF, 0x55, sum >> 7);
+  return m;
+}
+
+// ---- the library on the FM-1
+async function readSlot(s) {
+  for (let t = 0; t < 4; t++) {
+    const r = song.wait("slot", x => x.s === s, 500);
+    cc16(0x5C, s);
+    try { state.lib[s] = (await r).patch; return; } catch (e) { /* lost: again */ }
+  }
+  throw new Error("the FM-1 did not send slot " + slotName(s));
+}
+async function writeSlot(s, p) {
+  const m = patchMsg(0x5B, s, p);
+  for (let t = 0; t < 30; t++) {                // (about 80 messages: on a lossy link most tries lose one)
+    const r = song.wait("slotw", x => x.s === s, 400);
+    send(m);
+    try { if ((await r).ok) { state.lib[s] = { name: cleanName(p.name), regs: p.regs.slice(), extra: p.extra.slice() }; state.lib[s].regs[1] |= 0xC0; return; } }
+    catch (e) { /* lost: again */ }
+  }
+  throw new Error("the FM-1 did not take the patch for " + slotName(s));
+}
+async function keep() {                         // RAM to flash: the library, shapes, kit and parts
+  const saved = song.wait("saved", () => true, 20000);
+  await control(0x4E, 0, "heard", v => v === 0x4E);
+  return saved;
+}
+let busy = false;
+async function job(what, fn) {                  // one transfer at a time, its outcome in the status line
+  if (!state.out) { setStatus("The FM-1 is not connected.", "err"); return; }
+  if (busy) { setStatus("Wait for the last transfer to finish.", "err"); return; }
+  busy = true;
+  try { await fn(); } catch (e) { setStatus(what + " stopped: " + e.message, "err"); }
+  busy = false;
+  setTimeout(() => setProgress(null), 1200);
+}
+async function readLib() {
+  setStatus("Reading the FM-1's library...");
+  for (let s = 0; s < NSLOT; s++) { await readSlot(s); if (s % 4 === 3) { setProgress((s + 1) / NSLOT); renderLib(); } }
+  renderLib(); renderEditor(); renderParts();
+  const n = state.lib.filter(Boolean).length;
+  setStatus(`The FM-1 holds ${n} patch${n === 1 ? "" : "es"}.`, "ok");
+}
+async function readAll() {
+  await job("Reading", async () => {          // (the library even if the parts did not come)
+    let err = null;
+    await readParts().catch(e => { err = e; });
+    await readLib();
+    if (err) throw err;
+  });
+}
+
+// ---- .opm (VOPM) files: 2612.org's packs write detune centred (3 = none, 0..6), VOPM's own 0..7 as the chip
+function parseOpm(text, file) {
+  const out = [], seen = [];
+  let cur = null;
+  const lines = text.split(/\r?\n/);
+  for (const raw of lines) {
+    const line = raw.trim();
+    let m;
+    if ((m = line.match(/^@:\s*(\d+)\s*(.*)$/))) { cur = { idx: +m[1], name: m[2].trim(), ops: [] }; seen.push(cur); continue; }
+    if (!cur || !(m = line.match(/^(LFO|CH|M1|C1|M2|C2):\s*(.*)$/))) continue;
+    const v = m[2].trim().split(/\s+/).map(Number);
+    if (m[1] === "LFO") cur.lfo = v; else if (m[1] === "CH") cur.ch = v; else cur.ops.push(v);
+  }
+  const ok = (v, max) => Number.isInteger(v) && v >= 0 && v <= max;
+  const good = seen.filter(p => !/^no name$/i.test(p.name) && p.ch && p.ops.length === 4 &&
+    ok(p.ch[1], 7) && ok(p.ch[2], 7) && ok(p.ch[3] | 0, 3) && ok(p.ch[4] | 0, 7) &&
+    p.ops.every(o => o.length >= 9 && ok(o[0], 31) && ok(o[1], 31) && ok(o[2], 31) && ok(o[3], 15) && ok(o[4], 15) &&
+                     ok(o[5], 127) && ok(o[6], 3) && ok(o[7], 15) && ok(o[8], 7)) &&
+    !p.ops.every(o => o[5] >= 127) && !p.ops.every(o => o[0] === 0));   // (broken, or silent: nothing to keep)
+  const dts = good.flatMap(p => p.ops.map(o => o[8]));
+  const centred = dts.filter(x => x === 3).length > dts.filter(x => x === 0).length && !dts.some(x => x === 7);
+  for (const p of good) {
+    const [, fl, con, ams, pms] = p.ch;
+    const regs = [(fl & 7) << 3 | con, 0xC0 | (ams | 0) << 4 | (pms | 0)];
+    for (const o of p.ops) {                    // M1 C1 M2 C2: operators 1 to 4 in the algorithms' order
+      const [ar, d1r, d2r, rr, d1l, tl, ks, mul, dt1, , amsEn] = o;
+      const dt = !centred ? dt1 : dt1 >= 3 ? dt1 - 3 : 4 + 3 - dt1;   // (-3..-1 as the chip's 7..5)
+      regs.push((dt & 7) << 4 | mul, tl, ks << 6 | ar, (amsEn ? 0x80 : 0) | d1r, d2r, d1l << 4 | rr, 0);
+    }
+    const lfo = p.lfo && (p.lfo[1] > 0 || p.lfo[2] > 0) && ((ams | 0) || (pms | 0))
+      ? 0x80 | 8 | [3.98, 5.56, 6.02, 6.37, 6.88, 9.63, 48.1, 72.2].reduce((best, hz, i, a) => {
+          const want = 52.9 * 2 ** ((p.lfo[0] - 255) / 16);     // (VOPM's rate, roughly: the chip has 8 speeds)
+          return Math.abs(Math.log(hz / want)) < Math.abs(Math.log(a[best] / want)) ? i : best; }, 0)
+      : 0;
+    out.push({ name: p.name, idx: p.idx, regs, extra: [lfo, 0, 0, 0, 0] });
+  }
+  return { patches: out, centred };
+}
+function abbrev(file) {                         // "Sonic_the_Hedgehog_2_-_24_-_Extra_Life.opm" -> "STH2 24"
+  const parts = file.replace(/\.[^.]+$/, "").split(/_-_| - /).map(x => x.replace(/_/g, " ").trim());
+  const game = (parts[0] || "").split(/\s+/).filter(Boolean).map(w => /^\d+$/.test(w) ? w : /^[ivx]+$/i.test(w) ? w.toUpperCase() : w[0].toUpperCase()).join("");
+  const track = (parts.slice(1).find(x => /^\d+$/.test(x)) || "").slice(0, 3);
+  return (game.slice(0, 5) + (track ? " " + track : "")).trim();
+}
+
+// ---- loading files: .opm patches, or VGM songs (their patches, drums, PSG shapes and the songs themselves)
+const keyOf = p => p.regs.join(",");
+function addImports(list) {
+  const have = new Set(state.imports.map(keyOf));
+  for (const p of list) if (!have.has(keyOf(p))) { have.add(keyOf(p)); state.imports.push({ ...p, on: true }); }
+}
+const ROLES = [[48, "BAS"], [60, "LOW"], [72, "MID"], [84, "HI"], [128, "TOP"]];
 async function loadFiles(files) {
   if (!files.length) return;
   setStatus("Reading " + files.length + " file(s)...");
-  const found = new Map(), drums = new Map(), psgs = [], songs = [];
-  const games = new Set();
+  const found = new Map(), drums = new Map(), psgs = [], songs = [], notes = [];
+  let opmN = 0;
   for (const f of files) {
     try {
+      if (/\.opm$/i.test(f.name)) {
+        const r = parseOpm(await f.text(), f.name), ab = abbrev(f.name);
+        addImports(r.patches.map((p, i) => ({ ...p, name: cleanName(`${ab} ${i + 1}`), src: f.name })));
+        opmN += r.patches.length;
+        if (r.centred) notes.push("detune read as 2612.org's centred scale");
+        continue;
+      }
       const b = await readVgm(f), tag = gd3(b), ym = u32(b, 0x2C), secs = u32(b, 0x18) / 44100, warn = [];
-      if (tag.game) games.add(tag.game);
       if (!ym) { songs.push({ name: tag.track || f.name, secs, sp: null, warn: ["no YM2612: not a Mega Drive song"] }); continue; }
       const sp = vgmSplit(b);
       if (Math.abs(ym - 7670453) > 20000) warn.push("PAL: about 1% sharp");
       if (sp.image.length > BANK_MAX) warn.push("too many samples to play");
-      songs.push({ name: tag.track || f.name, secs, sp: sp.image.length <= BANK_MAX ? sp : null, warn, loops: sp.loopAt >= 0 });
+      songs.push({ name: tag.track || f.name, secs, sp: sp.image.length <= BANK_MAX ? sp : null, warn, loops: sp.loopAt >= 0, game: tag.game });
       extractPatches(b, found, f.name);
       extractDrums(b, drums, f.name);
       extractPsg(b, psgs, f.name);
     } catch (e) { songs.push({ name: f.name, secs: 0, sp: null, warn: ["could not read it: " + e.message] }); }
   }
-  state.songs = songs;
-  state.found = patchList(found);
-  state.drums = drumList(drums);
-  state.psgs = psgList(psgs);
-  state.kitSent = 0; state.psgSent = []; state.set = []; state.inst = -1; state.noise = -1;
-  $("gametitle").textContent = games.size === 1 ? [...games][0] : games.size ? `Songs from ${games.size} games` : files[0].name;
-  const noises = state.psgs.filter(e => e.noise).length;
-  $("gamesub").textContent = (games.size > 1 ? [...games].join(", ") + " · " : "") +
-    `${songs.length} song${songs.length === 1 ? "" : "s"} · ${state.found.length} instruments · ` +
-    `${state.drums.length} drum sounds · ${noises} noise sounds`;
-  $("gamebox").classList.remove("hide");
-  showSongs(); showSounds(); buildEditor();
-  setStatus("Press Send sounds to FM-1 to play them there.");
+  if (songs.length) {
+    state.songs = songs;
+    state.found = patchList(found);
+    state.drums = drumList(drums);
+    state.psgs = psgList(psgs);
+    const game = songs.find(s => s.game)?.game || files.find(f => !/\.opm$/i.test(f.name))?.name || "VGM";
+    const ab = abbrev(game.replace(/ /g, "_"));
+    addImports(state.found.map((p, i) => {
+      const mid = p.lo <= p.hi ? (p.lo + p.hi) / 2 : 66, role = p.lo === p.hi ? "PRC" : ROLES.find(([top]) => mid < top)[1];
+      return { name: cleanName(`${ab.split(" ")[0]} ${i + 1} ${role}`), regs: p.regs, extra: [p.lfo, p.oct, ...p.vib], src: "VGM songs" };
+    }));
+  }
+  renderImports(); renderDrums(); renderSongs();
+  setStatus(`${opmN + state.found.length} patches found` + (songs.length ? `, ${songs.length} songs, ${state.drums.length} drum sounds` : "") +
+    (notes.length ? ` (${[...new Set(notes)].join("; ")})` : "") + ". Pick a bank and slot and send them.");
 }
 $("files").onchange = () => loadFiles([...$("files").files]);
 const drop = $("drop");
@@ -1084,33 +1111,397 @@ drop.addEventListener("dragover", e => { e.preventDefault(); drop.classList.add(
 drop.addEventListener("dragleave", () => drop.classList.remove("over"));
 drop.addEventListener("drop", e => { e.preventDefault(); drop.classList.remove("over"); loadFiles([...e.dataTransfer.files]); });
 
-// ---- songs
-let playing = -1, playT0 = 0;
-function showSongs() {
-  $("songcard").classList.toggle("hide", !state.songs.length);
-  $("songs").innerHTML = "";
-  state.songs.forEach((s, i) => {
-    const row = document.createElement("div"), b = document.createElement("button");
-    row.className = "songrow" + (i === playing ? " playing" : "");
-    row.innerHTML = `<div class="t"><b>${esc(s.name)}</b><span id="songtime${i}">${fmt(s.secs)}${s.loops ? " · loops" : ""}</span>` +
-      s.warn.map(w => `<span class="badge warm">${esc(w)}</span>`).join("") + `</div>`;
-    b.textContent = i === playing ? "Stop" : "Play";
-    b.className = i === playing ? "on" : "";
-    b.disabled = !s.sp;
-    b.onclick = () => i === playing ? stopSong() : playSong(i);
-    row.appendChild(b);
-    $("songs").appendChild(row);
+// ---- drawing: an operator's envelope, an algorithm
+function envPts(o, w, h) {                      // attack to its level, decay to sustain, decay 2 held, release
+  if (!o.ar) return `2,${h - 2} ${w - 2},${h - 2}`;
+  const bot = h - 2, top = 3 + o.tl / 127 * (h - 8), k = w * 0.62;
+  const x1 = 2 + (31 - o.ar) / 31 * w * 0.18 + 1, x2 = Math.min(k - 4, x1 + (31 - o.d1r) / 31 * w * 0.22 + 2);
+  const sy = o.d1r ? top + o.sl / 15 * (bot - top) : top, ey = sy + o.d2r / 31 * (bot - sy);
+  const x4 = Math.min(w - 2, k + (15 - o.rr) / 15 * w * 0.33 + 2);
+  return [[2, bot], [x1, top], [x2, sy], [k, ey], [x4, bot]].map(p => p.map(n => n.toFixed(1)).join(",")).join(" ");
+}
+const OPC = ["#ff4a50", "#ffd23f", "#3fd0ff", "#c78bff"];
+function envSvg(o, w, h, c, keyoff) {
+  const pts = envPts(o, w, h);
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" preserveAspectRatio="none" aria-hidden="true">` +
+    `<polygon points="${pts} 2,${h - 2}" fill="${c}" fill-opacity=".18"/><polyline points="${pts}" fill="none" stroke="${c}" stroke-width="2"/>` +
+    (keyoff ? `<line x1="${w * 0.62}" y1="2" x2="${w * 0.62}" y2="${h}" stroke="#a3a8b4" stroke-dasharray="2 3"/>` : "") + `</svg>`;
+}
+const ALG_POS = [[[0, 1], [1, 1], [2, 1], [3, 1]], [[0, 0], [0, 1], [1, 1], [2, 1]], [[1, 0], [0, 1], [1, 1], [2, 1]],
+  [[0, 0], [1, 0], [1, 1], [2, 1]], [[0, 0], [1, 0], [0, 1], [1, 1]], [[1, 1], [0, 0], [1, 0], [2, 0]],
+  [[0, 0], [0, 1], [1, 1], [2, 1]], [[0, 1], [1, 1], [2, 1], [3, 1]]];
+const ALG_LINKS = [[[0, 1], [1, 2], [2, 3]], [[0, 2], [1, 2], [2, 3]], [[0, 3], [1, 2], [2, 3]], [[0, 1], [1, 3], [2, 3]],
+  [[0, 1], [2, 3]], [[0, 1], [0, 2], [0, 3]], [[0, 1]], []];
+function algSvg(a, s = 1) {
+  const P = ALG_POS[a].map(([c, r]) => [2 + c * 12, 2 + r * 9]);
+  return `<svg width="${50 * s}" height="${20 * s}" viewBox="0 0 50 20" aria-hidden="true">` +
+    ALG_LINKS[a].map(([f, t]) => `<line x1="${P[f][0] + 4}" y1="${P[f][1] + 3}" x2="${P[t][0] + 4}" y2="${P[t][1] + 3}" stroke="#a3a8b4"/>`).join("") +
+    P.map(([x, y], k) => `<rect x="${x}" y="${y}" width="8" height="7" fill="${CARRIERS[a] >> k & 1 ? "#e8242c" : "#6e7380"}"/>`).join("") + `</svg>`;
+}
+
+// ---- the Library tab
+function renderImports() {
+  $("importbox").classList.toggle("hide", !state.imports.length);
+  const on = state.imports.filter(p => p.on).length;
+  $("importsum").textContent = `${on} OF ${state.imports.length} PATCHES TICKED`;
+  const list = $("imports");
+  list.innerHTML = "";
+  state.imports.forEach(p => {
+    const d = decode(p), car = d.op[3];         // (operator 4 is a carrier in every algorithm)
+    const name = el("input", { type: "text", value: p.name, maxLength: 11, "aria-label": "Name",
+      oninput: e => { p.name = cleanName(e.target.value) ; }, onchange: e => { e.target.value = p.name = cleanName(e.target.value); } });
+    const box = el("input", { type: "checkbox", checked: p.on, "aria-label": "Send " + p.name,
+      onchange: e => { p.on = e.target.checked; item.classList.toggle("off", !p.on); renderImports(); } });
+    const env = el("span", { style: "width:56px;flex:none" });
+    env.innerHTML = envSvg(car, 56, 24, "#ffd23f");
+    const alg = el("span", { style: "flex:none" });
+    alg.innerHTML = algSvg(d.alg);
+    const item = el("div", { class: "item" + (p.on ? "" : " off") }, box, name,
+      el("span", { class: "meta", title: p.src || "", style: "white-space:nowrap" }, `ALG ${d.alg + 1} FB ${d.fb}`), alg, env,
+      el("button", { class: "btn small", style: "margin-left:auto", title: "Plays it on the editor's part (until you pick another sound)", onclick: () => audition(p) }, "Hear"));
+    list.append(item);
+  });
+  renderTarget();
+}
+function targetSlots() {                        // the slots the ticked patches would fill
+  const n = state.imports.filter(p => p.on).length, first = +$("tbank").value * BANK_SLOTS + +$("tslot").value;
+  return Array.from({ length: Math.min(n, NSLOT - first) }, (_, i) => first + i);
+}
+function renderTarget() {
+  const ts = $("tslot"), keepV = ts.value || "0";
+  if (!ts.options.length) for (let i = 0; i < BANK_SLOTS; i++) ts.add(new Option(String(i + 1).padStart(2, "0"), i));
+  ts.value = keepV;
+  const t = targetSlots(), on = state.imports.filter(p => p.on).length, full = t.filter(s => state.lib[s]).length;
+  $("tnote").textContent = !on ? "Tick some patches." : `Fills ${slotName(t[0])} to ${slotName(t[t.length - 1])}` +
+    (t.length < on ? ` (${on - t.length} do not fit)` : "") + (full ? `. Replaces ${full} patch${full === 1 ? "" : "es"}.` : ". Nothing is replaced.");
+  $("sendimp").disabled = !on;
+  $("sendimp").textContent = `Send ${on || ""} to FM-1`.replace("  ", " ");
+  renderLib();
+}
+$("tbank").onchange = () => { state.bank = +$("tbank").value; renderTarget(); };
+$("tslot").onchange = renderTarget;
+$("selall").onclick = () => { state.imports.forEach(p => p.on = true); renderImports(); };
+$("selnone").onclick = () => { state.imports.forEach(p => p.on = false); renderImports(); };
+$("clearimp").onclick = () => { state.imports = []; renderImports(); };
+function renderLib() {
+  const banks = $("banks");
+  banks.innerHTML = "";
+  for (let b = 0; b < 4; b++) {
+    const s = state.lib.slice(b * 32, b * 32 + 32), known = s.every(x => x !== undefined);
+    banks.append(el("button", { role: "tab", class: b === state.bank ? "on" : "", "aria-selected": b === state.bank,
+      onclick: () => { state.bank = b; renderLib(); } }, `B${b + 1}`, el("span", {}, known ? `${s.filter(Boolean).length}/32` : "?/32")));
+  }
+  const incoming = new Set($("importbox").classList.contains("hide") ? [] : targetSlots());
+  const grid = $("slots");
+  grid.innerHTML = "";
+  for (let i = 0; i < BANK_SLOTS; i++) {
+    const s = state.bank * 32 + i, p = state.lib[s], inc = incoming.has(s);
+    const label = p ? p.name : p === null ? "Empty" : "?";
+    grid.append(el("button", { class: "slot" + (p ? "" : " empty") + (inc ? " incoming" : "") + (s === state.sel ? " sel" : ""),
+      onclick: () => { state.sel = s; renderLib(); } },
+      el("span", { class: "n" }, el("span", {}, String(i + 1).padStart(2, "0")), el("span", {}, inc ? "NEW" : p ? `ALG ${(p.regs[0] & 7) + 1}` : "")),
+      el("span", { class: "t" }, label)));
+  }
+  const p = state.lib[state.sel];
+  $("slotinfo").textContent = state.sel < 0 ? `Program change ${state.bank * 32} to ${state.bank * 32 + 31} picks these.` :
+    `${slotName(state.sel)}: program ${state.sel}` + (p ? `, ${p.name}` : ", empty");
+  $("editslot").disabled = !p; $("clearslot").disabled = !p;
+}
+$("readlib").onclick = () => job("Reading", readLib);
+$("sendimp").onclick = () => job("Sending", async () => {
+  const list = state.imports.filter(p => p.on), slots = targetSlots(), norm = $("normalise").checked;
+  for (let i = 0; i < slots.length; i++) {
+    setStatus(`Sending ${list[i].name} to ${slotName(slots[i])}...`);
+    await writeSlot(slots[i], norm ? normalised(list[i]) : list[i]);
+    setProgress((i + 1) / (slots.length + 1));
+    renderLib();
+  }
+  setStatus("Keeping them on the FM-1 (the sound stops for a moment)...");
+  const r = await keep();
+  setProgress(1);
+  setStatus(r === 0 ? `${slots.length} patches in ${slotName(slots[0])} to ${slotName(slots[slots.length - 1])}, kept.` :
+    `Sent, but not kept for the next start (error ${r}).`, r === 0 ? "ok" : "err");
+});
+$("clearslot").onclick = () => job("Emptying", async () => {
+  const s = state.sel;
+  await control(0x5E, s, "cleared", v => v === s);
+  state.lib[s] = null;
+  await keep();
+  renderLib();
+  setStatus(slotName(s) + " emptied.", "ok");
+});
+$("clearbank").onclick = () => {
+  const b = state.bank;
+  if (!confirm(`Empty bank ${b + 1} on the FM-1? Its 32 slots are cleared.`)) return;
+  job("Clearing", async () => {
+    await control(0x58, b, "cleared", v => v === b);
+    for (let i = 0; i < 32; i++) state.lib[b * 32 + i] = null;
+    await keep();
+    renderLib();
+    setStatus(`Bank ${b + 1} emptied.`, "ok");
+  });
+};
+$("editslot").onclick = () => job("Opening", async () => {
+  const p = state.ed.part;
+  await setPartParam(p, 0x25, state.sel);
+  state.parts[p].slot = state.sel;
+  await openEditor();
+  showTab("editor");
+});
+$("exportbank").onclick = () => {                // VOPM text, detune on 2612.org's centred scale (as its packs)
+  const b = state.bank, L = ["//MiOPMdrv sound bank Paramer Ver2002.04.22", "//LFO: LFRQ AMD PMD WF NFRQ", "//@:[Num] [Name]",
+    "//CH: PAN\tFL CON AMS PMS SLOT NE", "//[OPname]: AR D1R D2R\tRR D1L\tTL\tKS MUL DT1 DT2 AMS-EN", ""];
+  for (let i = 0; i < 128; i++) {
+    const p = i < 32 ? state.lib[b * 32 + i] : null;
+    if (!p) { L.push(`@:${i} no Name`, "LFO: 0 0 0 0 0", "CH: 64 0 0 0 0 64 0", ...["M1", "C1", "M2", "C2"].map(n => `${n}: 31 0 0 4 0 0 0 1 0 0 0`), ""); continue; }
+    const d = decode(p);
+    L.push(`@:${i} ${p.name}`, "LFO: 0 0 0 0 0", `CH: 64 ${d.fb} ${d.alg} ${d.ams} ${d.pms} 120 0`);
+    ["M1", "C1", "M2", "C2"].forEach((n, k) => {
+      const o = d.op[k], dt = o.dt < 4 ? o.dt + 3 : 7 - o.dt;
+      L.push(`${n}: ${o.ar} ${o.d1r} ${o.d2r} ${o.rr} ${o.sl} ${o.tl} ${o.ks} ${o.mul} ${dt} 0 ${o.am ? 128 : 0}`);
+    });
+    L.push("");
+  }
+  const a = el("a", { href: URL.createObjectURL(new Blob([L.join("\r\n")], { type: "text/plain" })), download: `opn1-bank${b + 1}.opm` });
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+function partChan(p) { return state.mode === 1 ? p : state.parts[p].chan; }
+async function audition(p) {                    // onto the editor's part, then a note on its channel
+  if (!state.out) { setStatus("The FM-1 is not connected.", "err"); return; }
+  const part = state.ed.part, ch = partChan(part);
+  send(patchMsg(0x50, part, $("normalise").checked ? normalised(p) : p));
+  if (ch > 15) { setStatus(`Part ${part + 1} has no MIDI channel: set one in Parts to hear it.`, "err"); return; }
+  setTimeout(() => { send([0x90 | ch, 60, 110]); setTimeout(() => send([0x80 | ch, 60, 0]), 600); }, 80);
+  setStatus(`${p.name} on part ${part + 1} (not kept: send it to a slot for that).`);
+}
+
+// ---- the Editor: one part's sound, live; Save puts it in the part's slot
+let edTimer = 0, edGen = 0;
+function edSend() {                             // the whole patch onto the part, a moment after the last change,
+  clearTimeout(edTimer);                        // again until taken (a newer change takes over)
+  edTimer = setTimeout(async () => {
+    if (!state.ed.patch) return;
+    const gen = ++edGen, m = patchMsg(0x50, state.ed.part, encode(state.ed.patch));
+    for (let t = 0; t < 30 && gen === edGen; t++) {
+      const r = song.wait("patch", () => true, 300);
+      send(m);
+      if (await r.catch(() => false)) return;
+    }
+  }, 50);
+}
+async function openEditor() {
+  const p = state.ed.part, slot = state.parts[p].slot;
+  if (state.lib[slot] === undefined && state.out) await readSlot(slot).catch(() => {});
+  const src = state.lib[slot] || { name: "NEW", regs: encode({ name: "", alg: 0, fb: 0, ams: 0, pms: 0, extra: [0, 0, 0, 0, 0],
+    op: [0, 1, 2, 3].map(() => ({ dt: 0, mul: 1, tl: 0, ks: 0, ar: 31, am: 0, d1r: 0, d2r: 0, sl: 0, rr: 15, ssg: 0 })) }).regs, extra: [0, 0, 0, 0, 0] };
+  state.ed.slot = slot;
+  state.ed.patch = decode(src);
+  renderEditor();
+}
+const OP_SL = [["LEVEL", o => 127 - o.tl, (o, v) => o.tl = 127 - v, 0, 127], ["MULTIPLE", o => o.mul, (o, v) => o.mul = v, 0, 15],
+  ["ATTACK", o => o.ar, (o, v) => o.ar = v, 0, 31], ["DETUNE", o => o.dt < 4 ? o.dt : 4 - o.dt, (o, v) => o.dt = v >= 0 ? v : 4 - v, -3, 3],
+  ["DECAY 1", o => o.d1r, (o, v) => o.d1r = v, 0, 31], ["SUSTAIN", o => 15 - o.sl, (o, v) => o.sl = 15 - v, 0, 15],
+  ["DECAY 2", o => o.d2r, (o, v) => o.d2r = v, 0, 31], ["RELEASE", o => o.rr, (o, v) => o.rr = v, 0, 15],
+  ["KEY SCALE", o => o.ks, (o, v) => o.ks = v, 0, 3], ["SSG-EG", o => o.ssg, (o, v) => o.ssg = v, 0, 15],
+  ["LFO AM", o => o.am, (o, v) => o.am = v, 0, 1]];
+function slider(label, value, min, max, onInput) {
+  const out = el("output", {}, String(value));
+  return el("label", { class: "sl" }, el("span", {}, label, out),
+    el("input", { type: "range", min, max, value, oninput: e => { out.textContent = e.target.value; onInput(+e.target.value); } }));
+}
+function renderEditor() {
+  const ps = $("edpart"), e = state.ed.patch;
+  ps.innerHTML = "";
+  state.parts.forEach((pt, i) => ps.add(new Option(`Part ${i + 1}: ${state.lib[pt.slot]?.name || slotName(pt.slot)}`, i)));
+  ps.value = state.ed.part;
+  const ss = $("edslot");
+  ss.innerHTML = "";
+  state.lib.forEach((p, s) => { if (p || s === state.ed.slot) ss.add(new Option(`${slotName(s)} ${p ? p.name : "(empty)"}`, s)); });
+  ss.value = state.ed.slot;
+  if (!e) return;
+  $("edwhere").textContent = `${slotName(state.ed.slot)} · PROGRAM ${state.ed.slot} · PART ${state.ed.part + 1}`;
+  $("edname").value = e.name;
+  $("edsave").textContent = "Save to " + slotName(state.ed.slot);
+  const algs = $("algs");
+  algs.innerHTML = "";
+  for (let a = 0; a < 8; a++) {
+    const b = el("button", { class: a === e.alg ? "on" : "", "aria-label": "Algorithm " + (a + 1), onclick: () => { e.alg = a; edSend(); renderEditor(); } });
+    b.innerHTML = algSvg(a) + `<span>${a + 1}</span>`;
+    algs.append(b);
+  }
+  const g = $("edglobal");
+  g.innerHTML = "";
+  g.append(el("div", { style: "width:120px" }, slider("FEEDBACK", e.fb, 0, 7, v => { e.fb = v; edSend(); })),
+           el("div", { style: "width:120px" }, slider("LFO AM", e.ams, 0, 3, v => { e.ams = v; edSend(); })),
+           el("div", { style: "width:120px" }, slider("LFO PITCH", e.pms, 0, 7, v => { e.pms = v; edSend(); })));
+  const ops = $("ops");
+  ops.innerHTML = "";
+  e.op.forEach((o, k) => {
+    const env = el("div", { class: "env" });
+    const draw = () => { env.innerHTML = envSvg(o, 260, 110, OPC[k], true); };
+    draw();
+    const car = CARRIERS[e.alg] >> k & 1;
+    ops.append(el("div", { class: "op", style: `border-top:3px solid ${OPC[k]}` },
+      el("div", { class: "phead" }, el("span", { class: "chrome", style: "font-size:20px" }, `Op ${k + 1}`),
+        el("span", { class: "mono", style: `font-size:11px;padding:3px 8px;border:1px solid ${OPC[k]};color:${OPC[k]}` }, car ? "CARRIER" : "MODULATOR")),
+      env,
+      el("div", { class: "sliders" }, OP_SL.map(([n, get, set, lo, hi]) => slider(n, get(o), lo, hi, v => { set(o, v); draw(); edSend(); })))));
   });
 }
-function onPlaying(on) { if (!on && playing >= 0) { playing = -1; showSongs(); setStatus("Song ended."); } }
+$("edpart").onchange = () => { state.ed.part = +$("edpart").value; openEditor(); };
+$("edslot").onchange = () => job("Changing", async () => {     // the part plays that slot now, and it is edited
+  const p = state.ed.part, s = +$("edslot").value;
+  await setPartParam(p, 0x25, s);
+  state.parts[p].slot = s;
+  await openEditor();
+  setStatus(`Part ${p + 1} plays ${slotName(s)}.`, "ok");
+});
+function partMoved(p, s) {                      // the FM-1 changed a part's slot (PRESETS, a program change)
+  if (p > 5 || state.parts[p].slot === s) return;
+  state.parts[p].slot = s;
+  if (p === state.ed.part && !busy) openEditor().catch(() => {});
+  if (!$("tab-parts").classList.contains("hide")) renderParts();
+}
+$("edname").onchange = () => { if (state.ed.patch) { state.ed.patch.name = cleanName($("edname").value); $("edname").value = state.ed.patch.name; edSend(); } };
+$("edrevert").onclick = () => { openEditor().then(edSend); };
+$("edsave").onclick = () => job("Saving", async () => {
+  const p = encode(state.ed.patch);
+  await writeSlot(state.ed.slot, p);
+  const r = await keep();
+  renderLib(); renderEditor();
+  setStatus(r === 0 ? `Saved to ${slotName(state.ed.slot)}.` : `Saved, but not kept for the next start (error ${r}).`, r === 0 ? "ok" : "err");
+});
+
+// ---- the Parts tab
+async function setPartParam(p, c, v) {
+  for (let t = 0; t < 8; t++) {
+    const r = song.wait("partok", x => x === p, 300);
+    send([0xBF, 0x20, p, 0xBF, c, v & 127]);
+    try { await r; return; } catch (e) { /* lost: again */ }
+  }
+  throw new Error("the FM-1 did not answer");
+}
+async function readParts() {
+  for (let p = 0; p < 6; p++) {
+    let got = null;
+    for (let t = 0; t < 5 && !got; t++) {
+      const r = song.wait("partread", x => x.p === p, 400);
+      cc16(0x27, p);
+      got = await r.catch(() => null);
+    }
+    if (!got) throw new Error("the FM-1 did not send part " + (p + 1));
+    state.parts[p] = { chan: got[0x21], level: got[0x22], trig: got[0x23], time: got[0x24], slot: got[0x25] };
+    state.mode = got[0x26];
+  }
+  renderParts(); renderEditor();
+  if (!state.ed.patch) openEditor().catch(() => {});
+}
+function renderParts() {
+  $("mode").value = state.mode;
+  const t = $("partstable"), used = state.lib.map((p, s) => ({ p, s })).filter(x => x.p);
+  t.innerHTML = "<tr><th>PART</th><th>SOUND</th><th>MIDI CHANNEL</th><th>LEVEL</th><th>TRIGGER</th><th>TIME (MS)</th></tr>";
+  state.parts.forEach((pt, p) => {
+    const set = (c, v, k) => job("Setting", async () => { await setPartParam(p, c, v); pt[k] = v; renderParts(); setStatus(`Part ${p + 1} set.`, "ok"); });
+    const snd = el("select", { onchange: e => set(0x25, +e.target.value, "slot") });
+    if (!used.some(x => x.s === pt.slot)) snd.add(new Option(`${slotName(pt.slot)} ${state.lib[pt.slot] === null ? "(empty)" : ""}`, pt.slot));
+    for (const x of used) snd.add(new Option(`${slotName(x.s)} ${x.p.name}`, x.s));
+    snd.value = pt.slot;
+    const ch = el("select", { disabled: state.mode === 1, onchange: e => set(0x21, +e.target.value, "chan") });
+    for (let c = 0; c < 16; c++) ch.add(new Option(String(c + 1), c));
+    ch.add(new Option("Off (FM-1 keys only)", 16));
+    ch.value = state.mode === 1 ? p : pt.chan;
+    const trig = el("select", { disabled: state.mode === 1, onchange: e => set(0x23, +e.target.value, "trig") },
+      el("option", { value: 0 }, "Key"), el("option", { value: 1 }, "Delay"), el("option", { value: 2 }, "Release"));
+    trig.value = pt.trig;
+    const lvl = el("input", { type: "range", min: 0, max: 127, value: pt.level, "aria-label": "Level", onchange: e => set(0x22, +e.target.value, "level") });
+    const time = el("input", { type: "number", min: 0, max: 1270, step: 10, value: pt.time * 10, style: "width:110px", "aria-label": "Time",
+      onchange: e => set(0x24, Math.max(0, Math.min(127, Math.round(+e.target.value / 10))), "time") });
+    t.append(el("tr", {}, el("td", {}, el("b", { class: "mono", style: "color:var(--pink)" }, String(p + 1))), el("td", {}, snd), el("td", {}, ch),
+      el("td", { style: "min-width:120px" }, lvl), el("td", {}, trig), el("td", {}, time)));
+  });
+}
+$("mode").onchange = () => job("Setting", async () => {
+  const m = +$("mode").value;
+  for (let t = 0; t < 8; t++) { const r = song.wait("partok", x => x === 0x7F, 300); cc16(0x26, m); if (await r.then(() => true, () => false)) break; }
+  state.mode = m; renderParts();
+  setStatus(["Parts: each part plays as many notes as there are voices.", "GenMDM: MIDI channels 1 to 6 are FM parts 1 to 6, one note each.",
+             "Panel: any MIDI channel plays the FM-1's selected part."][m], "ok");
+});
+$("readparts").onclick = () => job("Reading", readParts);
+$("keepparts").onclick = () => job("Keeping", async () => { const r = await keep(); setStatus(r === 0 ? "Parts kept." : "Not kept: error " + r, r === 0 ? "ok" : "err"); });
+
+// ---- the Drums tab: the kit and the PSG shapes found in the songs
+function renderDrums() {
+  $("kitsub").textContent = state.drums.length ? `${Math.min(32, state.drums.length)} drum sounds. Tap to hear one on the FM-1 (once the kit is sent), Shift-tap to hear it here.` :
+    "Load VGM songs in the Library to find a game's sampled drums. MIDI channel 10 plays them, C2 the first.";
+  $("sendkit").disabled = !state.drums.length;
+  const pads = $("pads");
+  pads.innerHTML = "";
+  state.drums.slice(0, 32).forEach(d => {
+    const pad = el("div", { class: "pad", title: `${d.rate} Hz, used ${d.uses}x`,
+      onpointerdown: e => { pad.classList.add("hit"); setTimeout(() => pad.classList.remove("hit"), 120);
+        if (e.shiftKey || !state.out) preview(d); else { send([0x99, d.note, state.vel]); send([0x89, d.note, 0]); } } },
+      el("b", {}, noteName(d.note)), el("span", {}, `${Math.round(1000 * d.bytes.length / d.rate)} ms`));
+    pads.append(pad);
+  });
+  const list = $("psgs");
+  list.innerHTML = "";
+  $("sendpsg").disabled = !state.psgs.length;
+  state.psgs.slice(0, PSG_SET_MAX).forEach((e, k) => list.append(el("div", { class: "item" },
+    el("span", { class: "mono", style: "color:var(--pink);width:28px" }, String(k)), el("b", { class: "grow" }, e.name),
+    el("span", { class: "meta" }, `${e.noise ? "noise" : "square"} · used ${e.uses}x`),
+    el("button", { class: "btn small", onclick: () => previewPsg(e) }, "Hear here"))));
+}
+async function sendKit() {
+  const kit = kitImage(state.drums);
+  setStatus("Sending the drum kit...");
+  await sendImage(kit.img, 0x61, 0x63);
+  return kit.n;
+}
+async function sendShapes() {
+  const pl = state.psgs.slice(0, PSG_SET_MAX);
+  cc16(0x48, 0);
+  for (let k = 0; k < pl.length; k++) { await sendPsg(k, pl[k]); setProgress((k + 1) / pl.length); }
+  for (let r = 0; r < 3; r++) cc16(0x48, pl.length);
+  return pl.length;
+}
+$("sendkit").onclick = () => job("Sending", async () => { const n = await sendKit(); const r = await keep(); setStatus(`${n} drum sounds on the FM-1` + (r === 0 ? ", kept." : ` (not kept: error ${r}).`), r === 0 ? "ok" : "err"); });
+$("sendpsg").onclick = () => job("Sending", async () => { const n = await sendShapes(); const r = await keep(); setStatus(`${n} shapes on the FM-1` + (r === 0 ? ", kept." : ` (not kept: error ${r}).`), r === 0 ? "ok" : "err"); });
+// everything a game gave: its patches into the target slots, its shapes and kit (the link test drives this)
+async function sendSounds() {
+  await job("Sending", async () => {
+    const list = state.imports.filter(p => p.on), slots = targetSlots();
+    for (let i = 0; i < slots.length; i++) { await writeSlot(slots[i], $("normalise").checked ? normalised(list[i]) : list[i]); setProgress((i + 1) / slots.length); }
+    const pl = state.psgs.length ? await sendShapes() : 0, kn = state.drums.length ? await sendKit() : 0;
+    const r = await keep();
+    setStatus(`On the FM-1: ${slots.length} patches, ${kn} drum sounds, ${pl} PSG shapes.` + (r === 0 ? " Kept." : ` (Not kept: error ${r}.)`), r === 0 ? "ok" : "err");
+    renderLib();
+  });
+}
+
+// ---- the Songs tab
+let playing = -1, playT0 = 0;
+function renderSongs() {
+  const list = $("songs");
+  list.innerHTML = "";
+  if (!state.songs.length) list.append(el("p", { class: "sub" }, "No songs loaded."));
+  state.songs.forEach((s, i) => {
+    const b = el("button", { class: "btn" + (i === playing ? " on" : ""), disabled: !s.sp, onclick: () => i === playing ? stopSong() : playSong(i) }, i === playing ? "Stop" : "Play");
+    list.append(el("div", { class: "songrow" + (i === playing ? " playing" : "") },
+      el("div", { class: "t" }, el("b", {}, s.name), el("span", { class: "sub", id: "songtime" + i }, `${fmt(s.secs)}${s.loops ? " · loops" : ""}`),
+        s.warn.map(w => el("span", { class: "warnb" }, w))), b));
+  });
+}
+function onPlaying(on) { if (!on && playing >= 0) { playing = -1; renderSongs(); setStatus("Song ended."); } }
 function onStarved() { if (song.starved) setStatus(`The stream fell behind ${song.starved} time(s): the link may be slow.`, "err"); }
-function stopSong() { song.run++; for (let k = 0; k < 3; k++) cc16(0x75, 0); playing = -1; showSongs(); }
+function stopSong() { song.run++; for (let k = 0; k < 3; k++) cc16(0x75, 0); playing = -1; renderSongs(); }
 async function playSong(i) {
   const sp = state.songs[i].sp;
   if (!sp || !state.out) { setStatus("The FM-1 is not connected.", "err"); return; }
-  if (busy) { setStatus("Wait for the sounds to finish sending.", "err"); return; }
+  if (busy) { setStatus("Wait for the last transfer to finish.", "err"); return; }
   const run = ++song.run;
-  playing = i; showSongs();
+  playing = i; renderSongs();
   try {
     cc16(0x75, 0);
     setStatus("Sending the song's samples...");
@@ -1119,15 +1510,15 @@ async function playSong(i) {
     song.played = 0;
     song.starved = 0;
     await control(0x60, 0, "heard", v => v === 0x60);
-    let fed = 0;                                // bytes handed to the link: never more than the ring has room for
-    const room = () => RING - 4096 - (fed - song.played * 1024);    // (played lags: room is never overstated)
+    let fed = 0;
+    const room = () => RING - 4096 - (fed - song.played * 1024);
     link.start([], n => {
       const k = Math.max(0, Math.min(n, room())), b = next(k);
       fed += b.length;
-      return { b, end: b.length < k };          // (fewer than asked for: the song is over)
+      return { b, end: b.length < k };
     });
     setStatus("Filling the FM-1's buffer...");
-    const START = RING - 8192;                  // most of the ring before it starts: a head start on a slow link
+    const START = RING - 8192;
     while (song.run === run && link.committed < START && !link.done()) { link.pump(); await link.tick(); }
     setProgress(null);
     await control(0x75, 1, "tick", () => song.playing);
@@ -1149,248 +1540,75 @@ async function playSong(i) {
     setStatus("The song stopped: " + e.message, "err");
   }
   setProgress(null);
-  if (song.run === run) { playing = -1; showSongs(); }
+  if (song.run === run) { playing = -1; renderSongs(); }
 }
 
-// ---- sending the sounds: the instruments, the PSG shapes and the drum kit, one progress bar
-const SET_MAX = 32;
-let busy = false;
-async function sendSounds() {
-  if (!state.out) { setStatus("The FM-1 is not connected.", "err"); return; }
-  if (busy) return;
-  busy = true;
-  $("sendsounds").disabled = true;
-  try {
-    if (song.playing || playing >= 0) stopSong();
-    const list = state.found.slice(0, SET_MAX), pl = state.psgs.slice(0, PSG_SET_MAX), kit = kitImage(state.drums);
-    const steps = list.length + pl.length + (kit.n ? 1 : 0);
-    let done = 0;
-    setStatus("Sending the instruments...");
-    cc16(0x5A, 0);
-    state.set = [];
-    for (let k = 0; k < list.length; k++) {
-      const v = await sendPatch(16 + k, list[k].regs, list[k].name, [list[k].lfo, list[k].oct, ...list[k].vib]);
-      state.set.push(regsToPatch(v, list[k].name));
-      setProgress(++done / steps);
-    }
-    for (let r = 0; r < 3; r++) cc16(0x5A, list.length);   // (no answer: three times)
-    cc16(0x48, 0);
-    for (let k = 0; k < pl.length; k++) { await sendPsg(k, pl[k]); setProgress(++done / steps); }
-    for (let r = 0; r < 3; r++) cc16(0x48, pl.length);
-    state.psgSent = pl;
-    if (kit.n) {
-      setStatus("Sending the drum kit...");
-      await sendImage(kit.img, 0x61, 0x63);
-      state.kitSent = kit.n;
-    }
-    setProgress(1);
-    setStatus("Keeping them on the FM-1 for next time (the sound stops for a moment)...");
-    const saved = song.wait("saved", () => true, 20000);   // (listening first: the answer can come at once)
-    await control(0x4E, 0, "heard", v => v === 0x4E);
-    const kept = await saved;
-    setStatus(`On the FM-1: ${list.length} instruments, ${kit.n} drum sounds, ${pl.length} PSG shapes.` +
-      (kept === 0 ? " Kept for the next time it starts." : ` (Not kept for the next start: error ${kept}.)`), kept === 0 ? "ok" : "err");
-    showSounds(); buildEditor(); buildParts();
-  } catch (e) {
-    setStatus("Sending stopped: " + e.message, "err");
+// ---- the keyboard (the Editor's): the editor's part's MIDI channel
+const held = new Map();
+function noteOn(n) {
+  const ch = partChan(state.ed.part);
+  if (n < 0 || n > 127 || held.has(n) || ch > 15) return;
+  held.set(n, ch);
+  send([0x90 | ch, n, state.vel]);
+  document.querySelector(`.key[data-n="${n}"]`)?.classList.add("down");
+}
+function noteOff(n) {
+  if (!held.has(n)) return;
+  send([0x80 | held.get(n), n, 0]);
+  held.delete(n);
+  document.querySelector(`.key[data-n="${n}"]`)?.classList.remove("down");
+}
+const isBlack = n => [1, 3, 6, 8, 10].includes(n % 12);
+function buildKeys() {
+  const kb = $("kb"), first = 12 * (state.oct + 1), W = 34;
+  kb.innerHTML = "";
+  let x = 0;
+  for (let n = first; n < first + 37; n++) {
+    const k = el("div", { class: isBlack(n) ? "key b" : "key w" });
+    k.dataset.n = n;
+    if (isBlack(n)) { k.style.left = (x - 11) + "px"; k.style.width = "22px"; }
+    else { k.style.left = x + "px"; k.style.width = W + "px"; x += W; if (n % 12 === 0) k.textContent = "C" + (n / 12 - 1); }
+    kb.append(k);
   }
-  busy = false;
-  $("sendsounds").disabled = false;
-  setTimeout(() => setProgress(null), 1500);
+  kb.style.width = x + "px";
+  $("octv").textContent = "C" + state.oct;
 }
-$("sendsounds").onclick = sendSounds;
+const pointerNote = new Map();
+$("kb").addEventListener("pointerdown", e => { const k = e.target.closest(".key"); if (!k) return; $("kb").setPointerCapture(e.pointerId); pointerNote.set(e.pointerId, +k.dataset.n); noteOn(+k.dataset.n); });
+$("kb").addEventListener("pointermove", e => {
+  if (!pointerNote.has(e.pointerId)) return;
+  const k = document.elementFromPoint(e.clientX, e.clientY)?.closest(".key"), n = k ? +k.dataset.n : null, prev = pointerNote.get(e.pointerId);
+  if (n !== prev) { noteOff(prev); if (n !== null) { noteOn(n); pointerNote.set(e.pointerId, n); } }
+});
+const endPointer = e => { if (pointerNote.has(e.pointerId)) { noteOff(pointerNote.get(e.pointerId)); pointerNote.delete(e.pointerId); } };
+$("kb").addEventListener("pointerup", endPointer);
+$("kb").addEventListener("pointercancel", endPointer);
+const KEYMAP = { z: 0, s: 1, x: 2, d: 3, c: 4, v: 5, g: 6, b: 7, h: 8, n: 9, j: 10, m: 11, ",": 12,
+                 q: 12, 2: 13, w: 14, 3: 15, e: 16, r: 17, 5: 18, t: 19, 6: 20, y: 21, 7: 22, u: 23, i: 24 };
+const kbdHeld = new Map();
+addEventListener("keydown", e => {
+  if (e.repeat || e.metaKey || e.ctrlKey || e.target.matches("input, select, textarea") || $("tab-editor").classList.contains("hide")) return;
+  const off = KEYMAP[e.key.toLowerCase()];
+  if (off === undefined) return;
+  const n = 12 * (state.oct + 1) + off;
+  kbdHeld.set(e.key.toLowerCase(), n); noteOn(n);
+});
+addEventListener("keyup", e => { const n = kbdHeld.get(e.key.toLowerCase()); if (n !== undefined) { noteOff(n); kbdHeld.delete(e.key.toLowerCase()); } });
+addEventListener("blur", () => { for (const n of kbdHeld.values()) noteOff(n); kbdHeld.clear(); });
+$("octdn").onclick = () => { if (state.oct > 0) { state.oct--; buildKeys(); } };
+$("octup").onclick = () => { if (state.oct < 7) { state.oct++; buildKeys(); } };
+$("panic").onclick = () => { for (const n of [...held.keys()]) noteOff(n); for (let ch = 0; ch < 11; ch++) for (let n = 0; n < 128; n++) send([0x80 | ch, n, 0]); };
 
-// ---- the sounds, as things to pick
-function showSounds() {
-  $("soundcard").classList.toggle("hide", !state.found.length && !state.drums.length);
-  $("soundsub").textContent = state.set.length ? "Sent to the FM-1. Pick a sound to play it." :
-    "Hear them on the FM-1 after Send sounds to FM-1. Drums and noise can be heard here already (Shift-tap a pad).";
-  // instruments
-  $("insts").innerHTML = "";
-  const shown = state.allInsts ? SET_MAX : 10;
-  $("moreinsts").classList.toggle("hide", state.found.length <= 10);
-  $("moreinsts").textContent = state.allInsts ? "Show the 10 most used" : `Show all ${Math.min(SET_MAX, state.found.length)}`;
-  $("moreinsts").onclick = () => { state.allInsts = !state.allInsts; showSounds(); };
-  state.found.slice(0, shown).forEach((p, i) => {
-    const t = document.createElement("button"), badges = [];
-    if (p.vib[0]) badges.push("vibrato");
-    if (p.lfo) badges.push("LFO");
-    if (p.regs.some((x, j) => j >= 2 && (j - 2) % 7 === 6 && x & 8)) badges.push("SSG-EG");
-    t.className = "tile" + (state.inst === i ? " sel" : "");
-    t.innerHTML = `<span class="role">${role(p)}</span><span class="meta">${p.lo <= p.hi ? noteName(p.lo) + " to " + noteName(p.hi) : ""}` +
-      ` · used ${p.uses}x</span><span class="meta">Program ${i + 1}${badges.map(b => ` <span class="badge">${b}</span>`).join("")}</span>`;
-    t.onclick = () => pickInstrument(i);
-    $("insts").appendChild(t);
-  });
-  // drums
-  $("drumwrap").classList.toggle("hide", !state.drums.length);
-  $("pads").innerHTML = "";
-  state.drums.slice(0, 32).forEach(d => {
-    const pad = document.createElement("div");
-    pad.className = "pad";
-    pad.innerHTML = `<b>${noteName(d.note)}</b><span>${Math.round(1000 * d.bytes.length / d.rate)} ms</span>`;
-    pad.title = `${d.rate} Hz, used ${d.uses}x (MIDI channel 10, note ${d.note})`;
-    pad.onpointerdown = e => {
-      pad.classList.add("hit"); setTimeout(() => pad.classList.remove("hit"), 120);
-      if (e.shiftKey || !state.kitSent) { preview(d); if (!state.kitSent && !e.shiftKey) setStatus("Playing it here: send the sounds to hear it on the FM-1."); return; }
-      send([0x99, d.note, state.vel]); send([0x89, d.note, 0]);
-    };
-    $("pads").appendChild(pad);
-  });
-  // noise shapes (the ones that are percussion); square-wave shapes go to Advanced
-  const noises = state.psgs.map((e, k) => ({ e, k })).filter(x => x.e.noise);
-  $("noisewrap").classList.toggle("hide", !noises.length);
-  $("noises").innerHTML = "";
-  noises.forEach(({ e, k }) => {
-    const t = document.createElement("button"), fall = e.env[Math.min(5, e.env.length - 1)];   // (its drop over 1/10 s)
-    const kind = fall >= 6 ? "Short tick" : fall >= 3 ? "Hi-hat" : fall >= 1 ? "Shaker" : "Long noise";
-    t.className = "tile" + (state.noise === k ? " sel" : "");
-    t.innerHTML = `<span class="role">${kind}</span>` +
-      `<span class="meta">${e.noise & 4 ? "white" : "periodic"} noise · used ${e.uses}x</span>`;
-    const hear = document.createElement("span");
-    hear.className = "badge hear";
-    hear.textContent = "hear it here";
-    hear.onclick = ev => { ev.stopPropagation(); previewPsg(e); };
-    t.appendChild(hear);
-    t.onclick = () => pickNoise(k);
-    $("noises").appendChild(t);
-  });
-  // square-wave shapes (Advanced)
-  const squares = state.psgs.map((e, k) => ({ e, k })).filter(x => !x.e.noise);
-  $("squarewrap").classList.toggle("hide", !squares.length);
-  $("squares").innerHTML = "<tr><th>Shape</th><th>Volume per frame (2 dB steps)</th><th>Used</th><th></th></tr>";
-  squares.forEach(({ e, k }) => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${esc(e.name)}</td><td class="alg">${e.env.slice(0, 24).join(" ")}${e.env.length > 24 ? " ..." : ""}</td><td>${e.uses}x</td><td></td>`;
-    const hear = document.createElement("button"), use = document.createElement("button");
-    hear.className = use.className = "small";
-    hear.textContent = "Hear here";
-    hear.onclick = () => previewPsg(e);
-    use.textContent = "Use on Square wave";
-    use.onclick = () => {
-      if (!state.psgSent.includes(e)) { setStatus("Send the sounds to the FM-1 first.", "err"); return; }
-      for (const ch of [6, 7, 8]) send([0xC0 | ch, k]);
-      setPart("square");
-      setStatus(`${e.name} on the Square wave part.`, "ok");
-    };
-    tr.lastChild.append(hear, " ", use);
-    $("squares").appendChild(tr);
-  });
+// ---- tabs
+function showTab(name) {
+  for (const b of document.querySelectorAll("#nav button")) b.classList.toggle("on", b.dataset.tab === name);
+  for (const t of document.querySelectorAll(".tab")) t.classList.toggle("hide", t.id !== "tab-" + name);
+  if (name === "parts") renderParts();
+  if (name === "editor" && !state.ed.patch) openEditor().catch(() => {});
 }
-async function pickInstrument(i) {
-  const p = state.found[i];
-  state.inst = i;
-  showSounds();
-  setPart("inst");
-  try {
-    await sendPatch(6, p.regs, p.name, [p.lfo, p.oct, ...p.vib]);   // (all six channels, exactly: the FM-1's POLY too)
-    homeKeys(p);
-    setStatus(`${role(p)} (program ${i + 1}) on the Instrument part and the FM-1's POLY.`, "ok");
-  } catch (e) { setStatus(e.message, "err"); }
-}
-function pickNoise(k) {
-  if (!state.psgSent.includes(state.psgs[k])) { setStatus("Send the sounds to the FM-1 first.", "err"); return; }
-  state.noise = k;
-  send([0xC0 | 10, k]);                         // (MIDI channel 11: the noise, kit or not)
-  setPart("hats");
-  showSounds();
-  setStatus("Noise sound picked: play the Hi-hats part.", "ok");
-}
+for (const b of document.querySelectorAll("#nav button")) b.onclick = () => showTab(b.dataset.tab);
 
-// ---- the patch editor (Advanced)
-// ---- the FM patch editor (the panel's channel)
-function slider(label, value, max, onInput) {
-  const l = document.createElement("label"); l.className = "ctl";
-  const o = document.createElement("output"); o.textContent = value;
-  const r = document.createElement("input"); r.type = "range"; r.min = 0; r.max = max; r.value = value;
-  r.oninput = () => { o.textContent = r.value; onInput(+r.value); };
-  l.append(label, o, r);
-  return l;
-}
-function select(label, opts, value, onChange) {
-  const l = document.createElement("label"); l.className = "ctl";
-  const s = document.createElement("select"); s.style.gridColumn = "1 / 3";
-  opts.forEach((t, i) => s.add(new Option(t, i)));
-  s.value = value; s.onchange = () => onChange(+s.value);
-  l.append(label, document.createElement("span"), s);
-  return l;
-}
-function sendOp(ch, k, p, v) {
-  cc(ch, p.cc + k, p.invert ? 127 - v : scaled(v, p.max));
-}
-function sendAll(ch) {
-  const f = state.fm[ch], pt = f.patch;
-  cc(ch, 14, scaled(pt.alg, 7)); cc(ch, 15, scaled(pt.fb, 7));
-  cc(ch, 75, scaled(pt.pms, 7)); cc(ch, 76, scaled(pt.ams, 3)); cc(ch, 77, scaled(f.pan, 3));
-  pt.op.forEach((o, k) => OPPARAMS.forEach(p => sendOp(ch, k, p, o[p.k])));
-}
-function buildEditor() {
-  const ch = state.edCh;
-  const f = state.fm[ch], pt = f.patch;
-  const ps = $("preset"), all = state.set || [];   // as the FM-1's programs: the sound set
-  ps.innerHTML = "";
-  if (!all.length) ps.add(new Option("No sound set on the FM-1 yet", 0));
-  all.forEach((p, i) => ps.add(new Option((i + 1) + "  " + p.name, i)));
-  ps.value = Math.min(f.preset, all.length - 1);
-  ps.onchange = () => {
-    f.preset = +ps.value; f.patch = structuredClone(all[f.preset]);
-    send([0xC0 | ch, f.preset]);
-    const src = (state.found || [])[f.preset];  // (a set instrument: the keys to its range)
-    if (f.preset < (state.set || []).length && src) homeKeys(src);
-    buildEditor();
-  };
-  $("patchsend").onclick = () => sendAll(ch);
-  const desc = () => {
-    const c = CARRIERS[pt.alg];
-    $("algdesc").textContent = "Algorithm " + pt.alg + ":  " + ALGS[pt.alg] + "   carriers " +
-      [0, 1, 2, 3].filter(k => c >> k & 1).map(k => "O" + (k + 1)).join(" ");
-  };
-  desc();
-
-  const g = $("global"); g.innerHTML = "";
-  g.append(
-    slider("Algorithm", pt.alg, 7, v => { pt.alg = v; cc(ch, 14, scaled(v, 7)); desc(); markCarriers(); }),
-    slider("Feedback", pt.fb, 7, v => { pt.fb = v; cc(ch, 15, scaled(v, 7)); }),
-    slider("Vibrato (PMS)", pt.pms, 7, v => { pt.pms = v; cc(ch, 75, scaled(v, 7)); }),
-    slider("Tremolo (AMS)", pt.ams, 3, v => { pt.ams = v; cc(ch, 76, scaled(v, 3)); }),
-    select("Stereo", ["off", "right", "left", "both"], f.pan, v => { f.pan = v; cc(ch, 77, scaled(v, 3)); }),
-    select("LFO (all FM)", ["off", "on"], state.lfo.on, v => { state.lfo.on = v; cc(ch, 74, scaled(v, 1)); }),
-    slider("LFO speed (all FM)", state.lfo.speed, 7, v => { state.lfo.speed = v; cc(ch, 1, scaled(v, 7)); }),
-  );
-
-  const ops = $("ops"); ops.innerHTML = "";
-  pt.op.forEach((o, k) => {
-    const box = document.createElement("div"); box.className = "op"; box.dataset.k = k;
-    const h = document.createElement("h3"); h.innerHTML = `Operator ${k + 1} <span></span>`;
-    box.appendChild(h);
-    OPPARAMS.forEach(p => box.appendChild(slider(p.name, o[p.k], p.max, v => { o[p.k] = v; sendOp(ch, k, p, v); })));
-    ops.appendChild(box);
-  });
-  markCarriers();
-}
-function markCarriers() {
-  const pt = state.fm[state.edCh]?.patch; if (!pt) return;
-  document.querySelectorAll(".op").forEach(box => {
-    box.querySelector("h3 span").textContent = CARRIERS[pt.alg] >> +box.dataset.k & 1 ? "carrier" : "modulator";
-  });
-}
-function buildEdChans() {
-  $("edchans").innerHTML = "";
-  for (let i = 0; i < 6; i++) {
-    const b = document.createElement("button");
-    b.textContent = "FM " + (i + 1);
-    b.className = "small" + (i === state.edCh ? " on" : "");
-    b.onclick = () => { state.edCh = i; buildEdChans(); buildEditor(); };
-    $("edchans").appendChild(b);
-  }
-}
-
-function renumber() {                          // the step badges: 1, 2, 3 over the sections shown
-  let n = 0;
-  for (const st of document.querySelectorAll(".card .step")) if (!st.closest(".card").classList.contains("hide")) st.textContent = ++n;
-}
-new MutationObserver(renumber).observe(document.querySelector("main"), { subtree: true, attributes: true, attributeFilter: ["class"] });
-buildParts(); buildKeys(); buildEdChans(); buildEditor(); renumber(); startMidi();
+buildKeys(); renderImports(); renderLib(); renderDrums(); renderSongs(); renderParts(); renderEditor(); startMidi();
 </script>
 </body>
 </html>

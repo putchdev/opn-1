@@ -12,11 +12,29 @@ this document, the code wins.
 - The link can lose messages (Linux USB MIDI drops some under load). Every transfer is confirmed and every control
   message is repeated until answered. A sender must do the same.
 
-## 1. Playing (GenMDM v100 layout)
+## 1. Playing
+
+The FM sounds are six **parts**. Each part has a sound (a library slot, as edited), a MIDI channel, a level and a
+trigger. The six YM2612 FM channels are voices the parts share (five with a drum kit loaded). The MIDI mode, on the
+FM-1's GLOBAL page (MIDI knob) or by CC 26 below, says how they play:
+
+- **PARTS** (the default): each part plays as many notes as there are free voices. A new note takes a free voice,
+  else the oldest note's (this part's first). Parts on the same MIDI channel play together, as a layer. By default
+  part n is on channel n.
+- **GENMDM:** part n is FM channel n, one note at a time, on channel n: GenMDM v100's layout.
+- **PANEL:** any channel (but 10) plays the part shown on the FM-1, as its keys do.
+
+A part's trigger:
+
+- **Key:** at note-on.
+- **Delay:** its time after note-on. If the note ends first, it never sounds.
+- **Release:** at note-off, at the note-on's velocity, held for its time.
+
+So one part can be a sound's attack, another its body, another its tail. In GENMDM mode every part is Key.
 
 | MIDI channel | Plays |
 |---|---|
-| 1 to 6 | YM2612 FM channels 1 to 6, one note each (mono) |
+| A part's channel | That part (PARTS); 1 to 6, FM parts 1 to 6 (GENMDM) |
 | 7 to 9 | PSG tone channels 1 to 3 |
 | 10 | Drum kit if one is loaded (note 36 = sound 0, 37 = sound 1, ...), otherwise PSG noise |
 | 11 | PSG noise, always |
@@ -36,16 +54,18 @@ this document, the code wins.
   the note sets tone 3's pitch and tone 3 is silenced, which is how games pitch noise, so PSG channel 9 cannot play
   at the same time.
 
-**Pitch bend** works on FM channels 1 to 6 and PSG tones 7 to 9. The range is 2 semitones by default and is set
+PSG and drum channels play only when no FM part is on that channel.
+
+**Pitch bend** works on the FM parts and PSG tones 7 to 9. The range is 2 semitones by default and is set
 by CC 81.
 
 **Program change:**
 
-- On channels 1 to 6 it picks instrument `n mod set size` from the stored sound set. It does nothing when the set
-  is empty.
+- On a part's channel it picks library slot n for that part (0 to 127: bank 1 slot 1 is 0, bank 4 slot 32 is 127). An empty
+  slot is silent.
 - On channels 7 to 11 it picks PSG instrument n, or plain (no volume shape) if n is past the PSG set's size.
 
-**CCs on FM channels 1 to 6.** Values are 0 to 127, scaled down by taking the top bits. Operator order is O1 to O4.
+**CCs on a part's channel** edit that part's sound. Values are 0 to 127, scaled down by taking the top bits. Operator order is O1 to O4.
 
 | CC | Parameter | Scaling |
 |---|---|---|
@@ -206,18 +226,18 @@ refused (the held count does not move), which costs a go-back.
 Reference implementations: `tests/upload_script.py` (bank and stream, minimal) and `playSong` in
 `web/index.html` (full, with loss handling).
 
-## 3. Sound sets
+## 3. The library and sound sets
 
-A sound set is made of:
+The FM-1 keeps:
 
-- up to 32 FM instruments,
+- a library of 128 FM patches, 4 banks of 32 slots, all empty to begin with,
 - up to 16 PSG instruments, and
 - an optional drum kit.
 
-It lives in RAM. CC 4E writes it to flash, and it is reloaded at boot. Sending a new set replaces the old one, and
-nothing is built in: an empty set means silent FM.
+They live in RAM. CC 4E writes them to flash, and they are reloaded at boot. Nothing is built in. A 1.0 store
+(a 32 instrument sound set) is read into bank 1.
 
-The page sends a set in this order:
+1.0's page sends a sound set in this order, which fills bank 1:
 
 1. CC 5A 0
 2. each FM instrument
@@ -232,7 +252,8 @@ The page sends a set in this order:
 
 | CC | Meaning |
 |---|---|
-| 50 t | Begin. t = 0 to 5: load straight onto that FM channel. t = 6: all six. t = 16 + k: sound set slot k (0 to 31) |
+| 50 t | Begin. t = 0 to 5: load straight onto that FM channel. t = 6: all six. t = 16 + k: bank 1 slot k (0 to 31) |
+| 5B s | Begin, for library slot s (0 to 127). The reply is CC 3E s (taken) or 3F s (refused) |
 | 59 c | Name, one ASCII character per message, up to 11 (optional) |
 | 52 lo, 53 hi | One value: low 7 bits, then the top bit. Repeat for 30, 32 or 35 values |
 | 54 lo, 55 hi | Checksum: the sum of the name's characters and all values, mod 2^14, in 7 bit halves |
@@ -258,7 +279,17 @@ Optional extras follow:
 The device replies **CC 56 t** (taken) or **CC 57 t** (refused: wrong count, bad checksum or bad target). On no
 reply, send the whole frame again.
 
-**CC 5A n** sets the set size (0 to 32). It gets no reply. Programs 0 to n-1 are then the set.
+**CC 5A n** empties bank 1's slots from n on (1.0's set size). It gets no reply.
+
+The library has its own messages, all on channel 16:
+
+| CC | Meaning | Reply |
+|---|---|---|
+| 5E s | Empty slot s | 3D s |
+| 58 b | Empty bank b (0 to 3) | 3D b |
+| 5C s | Read slot s | 30 s, then 31 c for each name character, 32 lo 33 hi for each of the 35 values (as in the table above; pan is sent as both), then 34 lo 35 hi, the checksum. An empty slot replies 36 s alone |
+
+Emptying and writing slots changes RAM only: send CC 4E to keep the library.
 
 ### 3.2 PSG instrument
 
@@ -283,6 +314,23 @@ u32 n                       (at most 32)
 n x { u32 length, u32 rate_hz }   (rate 1000 to 50000)
 sample bytes, one sound after another, 8 bit unsigned (as the YM2612 DAC takes them)
 ```
+
+### 3.3 Parts
+
+All on channel 16. Changes are in RAM until CC 4E, which also keeps the parts. SAVE on the FM-1 keeps them too.
+
+| CC | Meaning | Reply |
+|---|---|---|
+| 20 p | Pick part p (0 to 5) for the messages below | none |
+| 21 c | Its MIDI channel: 0 to 15, or 16 for none (the FM-1's keys still play it) | 2F p |
+| 22 v | Its level, 0 to 127 | 2F p |
+| 23 t | Its trigger: 0 key, 1 delay, 2 release | 2F p |
+| 24 t | Its time, in 10 ms steps (the delay, or how long a release part holds) | 2F p |
+| 25 s | Its sound: library slot s | 2F p |
+| 26 m | The MIDI mode: 0 parts, 1 GenMDM, 2 panel | 2F 7F |
+| 27 p | Read part p | 20 p, then 21 to 26 with its values, then 2F p |
+
+The FM-1 sends **CC 28+p s** (28 to 2D) whenever part p's slot changes, for example by PRESETS or a program change.
 
 ## 4. Source map
 

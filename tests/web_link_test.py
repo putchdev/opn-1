@@ -54,7 +54,10 @@ function devMsg(st, d1, d2) {
     const h = (dev.on === 1 ? dev.bank : dev.ring).length;
     reply(0xBF, 0x65, h & 127); reply(0xBF, 0x66, h >> 7 & 127); reply(0xBF, 0x67, h >> 14 & 127);
   } break;
-  case 0x55: dev.patches = (dev.patches || 0) + 1; reply(0xBF, 0x56, 0); break;   // (frames: their content is the firmware's test)
+  case 0x50: case 0x5B: dev.slot = d1 === 0x5B ? d2 : -1; break;
+  case 0x55: dev.patches = (dev.patches || 0) + 1; reply(0xBF, dev.slot >= 0 ? 0x3E : 0x56, dev.slot >= 0 ? dev.slot : 0); break;   // (frames: their content is the firmware's and web_app_test's)
+  case 0x5C: reply(0xBF, 0x36, d2); break;      // (the library: empty)
+  case 0x27: for (const [c, v] of [[0x20, d2], [0x21, d2], [0x22, 127], [0x23, 0], [0x24, 10], [0x25, 0], [0x26, 0], [0x2F, d2]]) reply(0xBF, c, v); break;
   case 0x45: dev.psgs = (dev.psgs || 0) + 1; reply(0xBF, 0x46, 0); break;
   case 0x4E: reply(0xBF, 0x6E, 0x4E); dev.saved = (dev.saved || 0) + 1; reply(0xBF, 0x4D, 0); break;
   case 0x61: dev.on = 1; dev.bank = []; dev.wantLen = dev.wantCrc = 0; dev.kitMode = true; reply(0xBF, 0x6E, 0x61); break;
@@ -98,6 +101,7 @@ DRIVER = r"""<script>
   dev.rate = u32(b, 0x18) ? sp.cmds.length / (u32(b, 0x18) / 44100) / 100 : 10;   // bytes per 10 ms (no length: 1 KB/s)
   const t0 = performance.now();
   if (TEST.sounds) {                            // Send sounds to FM-1: the kit must arrive whole
+    while (busy) await new Promise(r => setTimeout(r, 50));   // (connecting reads the FM-1 first)
     await loadFiles([new File([b], "song.vgm")]);
     await sendSounds();
     const k = kitImage(state.drums);
@@ -106,6 +110,7 @@ DRIVER = r"""<script>
       `instruments ${dev.patches || 0}, PSG shapes ${dev.psgs || 0}, saved ${dev.saved || 0}, dropped ${dev.dropped} messages, dry 0, status "${$("status").textContent}"`;
     return;
   }
+  while (busy) await new Promise(r => setTimeout(r, 50));
   state.songs = [{ name: "test", secs: 0, sp, warn: [] }];
   $("loop").checked = true;
   setInterval(() => { if (!dev.done) document.getElementById("result").textContent =

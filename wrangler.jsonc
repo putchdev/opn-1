@@ -1,5 +1,6 @@
 {
   "name": "opn-1",
   "compatibility_date": "2026-09-01",
-  "assets": { "directory": "./web" }
+  "assets": { "directory": "./web" },
+  "routes": [{ "pattern": "opn-1.putch.co.uk", "custom_domain": true }]
 }

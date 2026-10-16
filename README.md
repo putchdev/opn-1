@@ -2,7 +2,7 @@
 
 <p align="center"><b>The Mega Drive / Genesis sound chips as an instrument, on the M-VAVE FM-1.</b></p>
 
-<p align="center"><a href="https://opn-1.putchdev.workers.dev/"><b>Open the web app</b></a> (Chrome or Edge)</p>
+<p align="center"><a href="https://opn-1.putch.co.uk/"><b>Open the web app</b></a> (Chrome or Edge)</p>
 
 OPN-1 is open-source firmware for the M-VAVE FM-1 keyboard. It runs accurate recreations of the console's
 two sound chips, the Yamaha YM2612 (six FM channels plus a sample DAC) and the SN76489 PSG (three square waves and
@@ -49,7 +49,7 @@ FM-1 and play them back exactly, with a live view of every channel on the device
 
    To go back to the official firmware or another one, use the
    [FM-1 Firmware Hub](https://fm1.designburgapps.com) in Chrome or Edge.
-2. **Open the page** in Chrome or Edge: **<https://opn-1.putchdev.workers.dev/>**. To run it locally instead
+2. **Open the page** in Chrome or Edge: **<https://opn-1.putch.co.uk/>**. To run it locally instead
    (Web MIDI needs https or localhost):
 
    ```sh

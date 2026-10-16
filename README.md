@@ -4,6 +4,8 @@
 
 <p align="center"><a href="https://opn-1.putch.co.uk/"><b>Open the web app</b></a> (Chrome or Edge)</p>
 
+<p align="center"><a href="https://opn-1.putch.co.uk/sample.mp3">Hear a sample</a>: a new song recorded from an FM-1 running OPN-1, with instruments from Sonic the Hedgehog</p>
+
 OPN-1 is open-source firmware for the M-VAVE FM-1 keyboard. It runs accurate recreations of the console's
 two sound chips, the Yamaha YM2612 (six FM channels plus a sample DAC) and the SN76489 PSG (three square waves and
 a noise channel), and makes them playable from the FM-1's own keys and knobs, or over USB MIDI.

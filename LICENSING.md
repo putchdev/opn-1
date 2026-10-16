@@ -24,7 +24,9 @@ complete source under the same licence too.
 | Nuked-OPN2 (YM3438/YM2612 emulator) by Nuke.YKT, unmodified, commit 335747d, in `tests/ref/nuked-opn2/` (tests only, not in the firmware) | LGPL-2.1-or-later | `tests/ref/nuked-opn2/LICENSE` |
 | JieLi AC79 SDK: `uboot.boot`, `cfg_tool.bin`, `eq_cfg_hw.bin` are read from your SDK checkout at build time and placed in the package; no SDK files are in this tree | Apache-2.0 | <https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK> |
 
-No game music or game data is included. The page reads the VGM files you give it, in your browser.
+No game music or game data is included. `web/sample.mp3` is an AI generated new composition by the OPN-1 authors, recorded from an FM-1
+running OPN-1 with instrument sounds from Sonic the Hedgehog; it is not a recording of any game's music. The page reads the VGM
+files you give it, in your browser.
 
 ## No warranty
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-"""web/index.html's library, editor and parts in headless Chrome, against a fake FM-1 with the firmware's
+"""web/index.html's library, editor and Multi tab in headless Chrome, against a fake FM-1 with the firmware's
 library and parts messages (docs/MIDI.md 3) that loses some of what the page sends.
   tests/web_app_test.py [DROP_PERCENT]
 An .opm file (made here, 2612.org's centred detune) is imported, sent to bank 2, edited, saved and cleared; the
@@ -72,7 +72,7 @@ FAKE = r"""<script>
 const DROP = %DROP% / 100;
 let rng = 12345;
 const rnd = () => (rng = (rng * 1103515245 + 12345) >>> 0) / 4294967296;
-const dev = { lib: Array(128).fill(null), parts: [0, 1, 2, 3, 4, 5].map(p => ({ chan: p, level: 127, trig: 0, time: 10, slot: 0 })),
+const dev = { lib: Array(128).fill(null), parts: [0, 1, 2, 3, 4, 5].map(p => ({ chan: p ? 16 : 17, level: 127, trig: 0, time: 10, slot: 0 })),
               mode: 0, cfg: 0, pf: null, saved: 0, frames: [], dropped: 0 };
 const fakeIn = { name: "FM-1 MIDI 1", onmidimessage: null };
 function reply(a, b, c) { Promise.resolve().then(() => fakeIn.onmidimessage && fakeIn.onmidimessage({ data: Uint8Array.from([a, b, c]) })); }
@@ -174,6 +174,8 @@ DRIVER = r"""<script>
   $("mode").value = "0"; $("mode").onchange(); await idle();
   const ch = $("partstable").rows[2].cells[2].firstChild; ch.value = "0"; ch.onchange({ target: ch }); await idle();
   check("part 2 onto MIDI channel 1", dev.parts[1].chan === 0);
+  $("single").click(); await idle();
+  check("One synth puts part 1 on every channel, the rest off", dev.parts[0].chan === 17 && dev.parts.slice(1).every(x => x.chan === 16));
   state.bank = 1; $("clearbank").click(); await idle();
   check("bank 2 cleared", dev.lib.every(x => x === null) && state.lib.slice(32, 64).every(x => x === null));
   document.getElementById("result").textContent = "RESULT\n" + checks.join("\n") + `\n(dropped ${dev.dropped} messages, status "${$("status").textContent}")`;

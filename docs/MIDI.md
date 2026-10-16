@@ -18,9 +18,10 @@ The FM sounds are six **parts**. Each part has a sound (a library slot, as edite
 trigger. The six YM2612 FM channels are voices the parts share (five with a drum kit loaded). The MIDI mode, on the
 FM-1's GLOBAL page (MIDI knob) or by CC 26 below, says how they play:
 
-- **PARTS** (the default): each part plays as many notes as there are free voices. A new note takes a free voice,
+- **MULTI** (the default): each part plays as many notes as there are free voices. A new note takes a free voice,
   else the oldest note's (this part's first). Parts on the same MIDI channel play together, as a layer. By default
-  part n is on channel n.
+  part 1 is on All (channels 1 to 6 and 12 to 15, the ones the PSG, drums and transfers leave) and parts 2 to 6 are off, so the FM-1 is one synth
+  playing the selected patch. Its screen and the page call this setup **Multi** once it is changed.
 - **GENMDM:** part n is FM channel n, one note at a time, on channel n: GenMDM v100's layout.
 - **PANEL:** any channel (but 10) plays the part shown on the FM-1, as its keys do.
 
@@ -34,7 +35,7 @@ So one part can be a sound's attack, another its body, another its tail. In GENM
 
 | MIDI channel | Plays |
 |---|---|
-| A part's channel | That part (PARTS); 1 to 6, FM parts 1 to 6 (GENMDM) |
+| A part's channel | That part (MULTI; a part on All takes 1 to 6 and 12 to 15); 1 to 6, FM parts 1 to 6 (GENMDM) |
 | 7 to 9 | PSG tone channels 1 to 3 |
 | 10 | Drum kit if one is loaded (note 36 = sound 0, 37 = sound 1, ...), otherwise PSG noise |
 | 11 | PSG noise, always |
@@ -92,8 +93,8 @@ by CC 81.
 On PSG channels 7 to 11, only CC 81 (bend range) is used.
 
 **PANEL mode.** The FM-1's GLO page has a MIDI setting. Set to PANEL, notes and pitch bend on every channel except
-10 play whatever part is selected on the FM-1's screen, through its arpeggiator if that is on. GENMDM (the
-default) is the layout above.
+10 play whatever part is selected on the FM-1's screen, through its arpeggiator if that is on. GENMDM is the
+layout above.
 
 ## 2. Transfers (channels 15 and 16)
 
@@ -322,12 +323,12 @@ All on channel 16. Changes are in RAM until CC 4E, which also keeps the parts. S
 | CC | Meaning | Reply |
 |---|---|---|
 | 20 p | Pick part p (0 to 5) for the messages below | none |
-| 21 c | Its MIDI channel: 0 to 15, or 16 for none (the FM-1's keys still play it) | 2F p |
+| 21 c | Its MIDI channel: 0 to 15, 16 for none (the FM-1's keys still play it), or 17 for All (1 to 6 and 12 to 15) | 2F p |
 | 22 v | Its level, 0 to 127 | 2F p |
 | 23 t | Its trigger: 0 key, 1 delay, 2 release | 2F p |
 | 24 t | Its time, in 10 ms steps (the delay, or how long a release part holds) | 2F p |
 | 25 s | Its sound: library slot s | 2F p |
-| 26 m | The MIDI mode: 0 parts, 1 GenMDM, 2 panel | 2F 7F |
+| 26 m | The MIDI mode: 0 multi, 1 GenMDM, 2 panel | 2F 7F |
 | 27 p | Read part p | 20 p, then 21 to 26 with its values, then 2F p |
 
 The FM-1 sends **CC 28+p s** (28 to 2D) whenever part p's slot changes, for example by PRESETS or a program change.

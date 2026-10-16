@@ -407,6 +407,7 @@ enum { MODE_PARTS, MODE_GENMDM, MODE_PANEL, NMODE };
 enum { TRIG_KEY, TRIG_DELAY, TRIG_RELEASE, NTRIG };
 #define NPART 6u
 #define CHAN_OFF 16u
+#define CHAN_ALL 17u                            /* every channel the PSG, drums and transfers leave: 1-6, 12-15 */
 typedef struct {
     patch_t p;                                  /* its sound: its slot's, as the knobs and CCs left it */
     uint8_t slot, chan, level, trig, time, gen, bend_range, pan;   /* time: 10 ms steps; gen: p's version */
@@ -417,6 +418,14 @@ static part_t pt[NPART];
 static uint8_t midi_mode, dbl;                  /* dbl: each note on two voices, cents apart (0: one) */
 
 static uint32_t n_voices(void) { return kit_n ? 5u : 6u; }   /* (with a kit, FM channel 6 is the drums') */
+
+static int multi_used(void)                     /* 0: one synth, part 1 on All and the rest off */
+{
+    uint32_t p;
+    if (midi_mode != MODE_PARTS || pt[0].chan != CHAN_ALL) return 1;
+    for (p = 1; p < NPART; p++) if (pt[p].chan != CHAN_OFF) return 1;
+    return 0;
+}
 
 static void voice_take(uint32_t v, uint32_t p)  /* voice v plays part p's sound */
 {
@@ -616,7 +625,8 @@ static int parts_midi(uint32_t ch, uint32_t type, uint32_t d1, uint32_t d2)
 {
     uint32_t p, took = 0;
     for (p = 0; p < NPART; p++) {
-        if (midi_mode == MODE_GENMDM ? p != ch : pt[p].chan != ch) continue;
+        if (midi_mode == MODE_GENMDM ? p != ch : pt[p].chan != ch && !(pt[p].chan == CHAN_ALL && ch < 15u &&
+                                                                       (ch < 6u || ch > 10u))) continue;
         took = 1;
         if (type == 0x90u && d2) part_note_on(p, d1, d2);
         else if (type == 0x80u || type == 0x90u) part_note_off(p, d1);
@@ -628,7 +638,7 @@ static int parts_midi(uint32_t ch, uint32_t type, uint32_t d1, uint32_t d2)
 }
 
 /* ---- parts in the settings sector: kept by SAVE and CC 4E, read at boot */
-#define PARTS_MAGIC 0x50u
+#define PARTS_MAGIC 0x51u                       /* (0x50: before part 1 took All) */
 typedef struct { uint8_t magic, mode, dbl, pad; struct { uint8_t slot, chan, level, trig, time, pan, bend_range, pad; } p[NPART]; } parts_store_t;
 static void parts_save(void)
 {
@@ -649,9 +659,9 @@ static void parts_init(void)                    /* defaults, or what was kept; t
     if (kept) { midi_mode = s.mode; dbl = s.dbl <= 50u ? s.dbl : 0u; }
     for (p = 0; p < NPART; p++) {
         part_t *t = &pt[p];
-        t->chan = (uint8_t)p; t->level = 127; t->trig = TRIG_KEY; t->time = 10; t->pan = 3; t->bend_range = 2;
+        t->chan = (uint8_t)(p ? CHAN_OFF : CHAN_ALL); t->level = 127; t->trig = TRIG_KEY; t->time = 10; t->pan = 3; t->bend_range = 2;
         t->slot = (uint8_t)first;
-        if (kept && s.p[p].chan <= CHAN_OFF && s.p[p].level <= 127u && s.p[p].trig < NTRIG && s.p[p].time <= 127u &&
+        if (kept && s.p[p].chan <= CHAN_ALL && s.p[p].level <= 127u && s.p[p].trig < NTRIG && s.p[p].time <= 127u &&
             s.p[p].pan <= 3u && s.p[p].bend_range <= 24u && s.p[p].slot < NSLOT) {
             t->slot = s.p[p].slot; t->chan = s.p[p].chan; t->level = s.p[p].level; t->trig = s.p[p].trig;
             t->time = s.p[p].time; t->pan = s.p[p].pan; t->bend_range = s.p[p].bend_range;
@@ -1052,7 +1062,7 @@ static int parts_rx(uint32_t d1, uint32_t d2)   /* 1: the CC was the parts' setu
     if (d1 < 0x20u || d1 > 0x27u) return 0;
     switch (d1) {
     case 0x20: if (d2 < NPART) cfg_part = (uint8_t)d2; return 1;
-    case 0x21: if (d2 <= CHAN_OFF) { parts_off(); t->chan = (uint8_t)d2; } break;
+    case 0x21: if (d2 <= CHAN_ALL) { parts_off(); t->chan = (uint8_t)d2; } break;
     case 0x22: t->level = (uint8_t)d2; part_sync(cfg_part); break;
     case 0x23: if (d2 < NTRIG) { parts_off(); t->trig = (uint8_t)d2; } break;
     case 0x24: t->time = (uint8_t)d2; break;
@@ -1372,7 +1382,7 @@ static void part_bend(uint32_t sel, int32_t bend)
 
 /* ---- the knobs: a page of four, chosen by the buttons; ALGORITHM is always the algorithm */
 enum { PG_SOUND, PG_TONE, PG_ENV, PG_LFO, PG_FX, PG_ARP, PG_GLO, PG_PARTS, NPAGE };
-static const char *const PAGE_NAME[NPAGE] = {"SOUND", "OPERATOR", "ENVELOPES", "LFO", "VIBRATO", "ARPEGGIO", "GLOBAL", "PARTS"};
+static const char *const PAGE_NAME[NPAGE] = {"SOUND", "OPERATOR", "ENVELOPES", "LFO", "VIBRATO", "ARPEGGIO", "GLOBAL", "MULTI"};
 static const char *const KNOB_NAME[NPAGE][4] = {
     {"BRIGHT", "ATTACK", "REL", "FEEDBK"}, {"LEVEL", "MULT", "DETUNE", "DECAY2"},
     {"ATTACK", "DECAY", "SUSTN", "REL"}, {"RATE", "FM DEP", "AM DEP", "AM OPS"},
@@ -1382,7 +1392,7 @@ static const int16_t RANGE[NPAGE][4][3] = {     /* min, max, a detent's step */
     {{0, 127, 2}, {0, 31, 1}, {0, 15, 1}, {0, 7, 1}}, {{0, 127, 1}, {0, 15, 1}, {-3, 3, 1}, {0, 31, 1}},
     {{0, 31, 1}, {0, 31, 1}, {0, 15, 1}, {0, 15, 1}}, {{0, 8, 1}, {0, 7, 1}, {0, 3, 1}, {0, 15, 1}},
     {{0, 100, 2}, {0, 100, 2}, {0, 100, 2}, {0, 50, 1}}, {{0, 3, 1}, {40, 300, 4}, {1, 4, 1}, {10, 100, 10}},
-    {{1, 127, 4}, {0, 24, 1}, {0, NMODE - 1, 1}, {-50, 50, 1}}, {{0, CHAN_OFF, 1}, {0, 127, 2}, {0, NTRIG - 1, 1}, {0, 127, 1}}};
+    {{1, 127, 4}, {0, 24, 1}, {0, NMODE - 1, 1}, {-50, 50, 1}}, {{0, CHAN_ALL, 1}, {0, 127, 2}, {0, NTRIG - 1, 1}, {0, 127, 1}}};
 #define IS_PATCH(pg, k) ((pg) <= PG_FX && !((pg) == PG_LFO && (k) == 0u) && !((pg) == PG_FX && (k) == 3u))
 static uint8_t page, op_sel, knob_sel;           /* knob_sel: the panel's part (PARTS page) */
 #define NONE (-1000)                            /* (a knob with nothing to turn) */
@@ -1499,8 +1509,8 @@ static void knob_text(uint32_t pg, uint32_t k, int32_t v, char *s)
         return;
     } else if (pg == PG_FX && k == 2u) v *= 10; /* (10 ms steps: shown in ms) */
     else if (pg == PG_ARP && k == 0u) t = MODE[v & 3];
-    else if (pg == PG_GLO && k == 2u) t = v == MODE_PARTS ? "PARTS" : v == MODE_GENMDM ? "GENMDM" : "PANEL";
-    else if (pg == PG_PARTS && k == 0u) { if (v == CHAN_OFF) t = "OFF"; else v++; }
+    else if (pg == PG_GLO && k == 2u) t = v == MODE_PARTS ? "MULTI" : v == MODE_GENMDM ? "GENMDM" : "PANEL";
+    else if (pg == PG_PARTS && k == 0u) { if (v == CHAN_OFF) t = "OFF"; else if (v == CHAN_ALL) t = "ALL"; else v++; }
     else if (pg == PG_PARTS && k == 2u) t = v == TRIG_KEY ? "KEY" : v == TRIG_DELAY ? "DELAY" : "REL";
     else if (pg == PG_PARTS && k == 3u) v *= 10;   /* (10 ms steps: shown in ms) */
     if (t) {
@@ -1519,6 +1529,13 @@ static int edited(uint32_t c)                   /* part c's sound differs from i
         if (a[i] != b[i]) return 1;
     return 0;
 }
+static uint32_t sel_step(uint32_t sel, int32_t dir)   /* the panel's next entry; parts 2-6 only with MULTI in use or shown */
+{
+    do sel = (uint32_t)((int32_t)sel + dir + NPANEL) % NPANEL;
+    while (sel > 0u && sel < NPART && !multi_used() && page != PG_PARTS);
+    return sel;
+}
+
 static int knobs_turn(uint32_t sel)             /* 1: something moved */
 {
     uint32_t k;
@@ -1595,12 +1612,15 @@ static void head_text(char *s)                  /* the header's left: a message,
     if (msg && (int32_t)(fm1_ms - msg_until) < 0) { put_str(&p, msg); return; }
     msg = 0;
     if (song_text(s)) return;
+    if (page == PG_PARTS) put_str(&p, "MULTI: ");
+    else if (ui_sel < NPART && !multi_used()) { put_str(&p, "FM"); return; }
     put_str(&p, N[ui_sel]);
     if (ui_sel < NPART) {
         put_str(&p, " / ");
         if (midi_mode == MODE_GENMDM) put_str(&p, "GENMDM");
         else if (midi_mode == MODE_PANEL) put_str(&p, "PANEL");
         else if (pt[ui_sel].chan == CHAN_OFF) put_str(&p, "NO CH");
+        else if (pt[ui_sel].chan == CHAN_ALL) put_str(&p, "ALL CH");
         else { put_str(&p, "CH "); p = put_num(p, pt[ui_sel].chan + 1, 0); }
     }
 }
@@ -1697,7 +1717,7 @@ static void draw_play(void)                     /* the part's sound: its name, i
     const char *name = "";
     if (ui_sel < NPART) {
         if (!lib_any()) put_str(&q, "NO SOUNDS: USE THE PAGE");
-        else { put_str(&q, "PROGRAM "); q = put_num(q, pt[ui_sel].slot, 0); if (edited(ui_sel)) put_str(&q, " *"); }
+        else { put_str(&q, "PATCH "); put_slot(&q, pt[ui_sel].slot); if (edited(ui_sel)) put_str(&q, " *"); }
         name = pt[ui_sel].p.name[0] ? pt[ui_sel].p.name : "EMPTY";
     } else if (ui_sel < PANEL_DRUMS) {
         uint32_t c = ui_sel - PANEL_PSG;
@@ -1774,6 +1794,7 @@ static void draw_parts(void)                    /* PARTS: the six, the panel's h
         cv_text(22, y, &FONT_S, t->p.name[0] ? t->p.name : "EMPTY", t->p.name[0] ? C_WHITE : C_LBL);
         if (midi_mode == MODE_GENMDM) put_num(s, (int32_t)k + 1, 0);
         else if (t->chan == CHAN_OFF) put_str(&q, "-");
+        else if (t->chan == CHAN_ALL) put_str(&q, "ALL");
         else put_num(s, t->chan + 1, 0);
         cv_text(144, y, &FONT_S, s, C_WHITE);
         cv_rect(170, y + 6, 30, 5, C_BOX);
@@ -1797,7 +1818,7 @@ static void draw_foot(void)
         uint32_t pct = load_ticks * 100u / 139320u;
         q = s; put_str(&q, "CPU "); q = put_num(q, (int32_t)pct, 0); put_str(&q, "%");
     } else {
-        q = s; put_str(&q, midi_mode == MODE_PARTS ? "PARTS" : midi_mode == MODE_GENMDM ? "GENMDM" : "PANEL");
+        q = s; put_str(&q, midi_mode == MODE_PARTS ? (multi_used() ? "MULTI" : "") : midi_mode == MODE_GENMDM ? "GENMDM" : "PANEL");
     }
     text_r(234, 220, &FONT_S, s, C_LBL);
 }
@@ -2143,12 +2164,12 @@ static void app_main(void)
         if (b & (1u << BTN_HOME)) page = PG_SOUND;
         if (b & (1u << BTN_LFO)) page = PG_LFO;
         if (b & (1u << BTN_FX)) page = PG_FX;
-        if (b & (1u << BTN_GLO)) page = page == PG_GLO ? PG_PARTS : PG_GLO;   /* again: the parts */
+        if (b & (1u << BTN_GLO)) page = page == PG_GLO ? PG_PARTS : PG_GLO;   /* again: MULTI */
         if (b & (1u << BTN_EDIT)) { if (page == PG_TONE) op_sel = (op_sel + 1u) & 3u; page = PG_TONE; }   /* again: the next operator */
         if (b & (1u << BTN_ENV)) { if (page == PG_ENV) op_sel = (op_sel + 1u) & 3u; page = PG_ENV; }
         if (b & (1u << BTN_SEL)) {              /* the next operator on its pages, else the next part */
             if (page == PG_TONE || page == PG_ENV) op_sel = (op_sel + 1u) & 3u;
-            else sel = (sel + 1u) % NPANEL;
+            else sel = sel_step(sel, 1);
         }
         if (b & (1u << BTN_ARP)) {              /* its page and on; on its page, on or off */
             if (page == PG_ARP && arp.on) { arp.on = 0; arp.n = 0; arp_stop(); }
@@ -2161,7 +2182,7 @@ static void app_main(void)
                 if (!pt[sel].p.name[0]) { const char *u = "USER"; uint32_t i; for (i = 0; u[i]; i++) pt[sel].p.name[i] = u[i]; }
                 lib[pt[sel].slot] = pt[sel].p;
                 msg = store_save() ? "SAVE FAILED" : "SAVED";
-            } else msg = "PARTS SAVED";
+            } else msg = multi_used() ? "MULTI SAVED" : "SAVED";
             msg_until = fm1_ms + 1500u;
         }
         if (b & (1u << BTN_REC)) {              /* the chips' sounds now onto the FM parts */
@@ -2180,7 +2201,7 @@ static void app_main(void)
         if (b & ~(1u << BTN_OCT_DOWN | 1u << BTN_OCT_UP | 1u << BTN_PLAY)) dirty = BANDS_ALL;
         if (knobs_turn(sel)) dirty = BANDS_ALL;
         turn = fm1_enc_take(ENC_SELECT);
-        if (turn) sel = (uint32_t)((int32_t)sel + turn + 64 * NPANEL) % NPANEL;
+        for (; turn; turn += turn > 0 ? -1 : 1) sel = sel_step(sel, turn > 0 ? 1 : -1);
         turn = fm1_enc_take(ENC_PRESETS);
         if (turn && sel < PANEL_PSG) {
             int32_t i = slot_step(pt[sel].slot, turn);

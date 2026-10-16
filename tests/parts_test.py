@@ -77,6 +77,11 @@ def main():
     cc(0x27, 1)                                 # part 2's setup read back
     wait(10)
     m.append(("raw", 0xC2, 1, 0))               # a program change on part 3's channel: the FM-1 says so
+    wait(10)
+    cc(0x26, 0); cc(0x20, 1); cc(0x21, 16)      # back to one synth: part 1 on every channel by default
+    note(4, 40)
+    note(6, 41)                                 # (channel 7: the PSG's, not All's)
+    report()                                    # 9
 
     script, t = [], 100
     for e in m:
@@ -106,9 +111,10 @@ def main():
     check("for its time", sounding(voices(r, 7)) == [])
     v8 = voices(r, 8)
     check("GenMDM: one note on FM 1", sounding(v8) == [(1, 62)] and v8[0][:2] == (1, 62))
-    tail = r[r.index((0x20, 1), len(r) - 12):]
+    tail = r[r.index((0x20, 1), r.index((0x2F, 0x7F))):]
     check("part 2's setup reads back", tail[:8] == [(0x20, 1), (0x21, 0), (0x22, 127), (0x23, 2), (0x24, 20), (0x25, 1), (0x26, 1), (0x2F, 1)])
-    check("a slot change is reported", (0x2A, 1) in r[r.index((0x2F, 1), len(r) - 12):])
+    check("a slot change is reported", (0x2A, 1) in tail)
+    check("by default part 1 plays All but the PSG's channels", sounding(voices(r, 9)) == [(1, 40)])
     sys.exit(1 if failed else 0)
 
 

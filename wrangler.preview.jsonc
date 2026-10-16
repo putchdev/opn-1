@@ -1,0 +1,7 @@
+// The opm-synth branch's page, previewed at opn-1-preview.putch.co.uk: npx wrangler deploy -c wrangler.preview.jsonc
+{
+  "name": "opn-1-preview",
+  "compatibility_date": "2026-09-01",
+  "assets": { "directory": "./web" },
+  "routes": [{ "pattern": "opn-1-preview.putch.co.uk", "custom_domain": true }]
+}

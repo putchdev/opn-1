@@ -316,7 +316,7 @@ n x { u32 length, u32 rate_hz }   (rate 1000 to 50000)
 sample bytes, one sound after another, 8 bit unsigned (as the YM2612 DAC takes them)
 ```
 
-### 3.3 Parts
+### 3.4 Multi (the parts' setup)
 
 All on channel 16. Changes are in RAM until CC 4E, which also keeps the parts. SAVE on the FM-1 keeps them too.
 

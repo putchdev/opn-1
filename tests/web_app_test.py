@@ -174,8 +174,10 @@ DRIVER = r"""<script>
   $("mode").value = "0"; $("mode").onchange(); await idle();
   const ch = $("partstable").rows[2].cells[2].firstChild; ch.value = "0"; ch.onchange({ target: ch }); await idle();
   check("part 2 onto MIDI channel 1", dev.parts[1].chan === 0);
+  check("the editor says Multi is in use", !$("edmulti").classList.contains("hide"));
   $("single").click(); await idle();
   check("One synth puts part 1 on every channel, the rest off", dev.parts[0].chan === 17 && dev.parts.slice(1).every(x => x.chan === 16));
+  check("and the editor's note goes", $("edmulti").classList.contains("hide"));
   state.bank = 1; $("clearbank").click(); await idle();
   check("bank 2 cleared", dev.lib.every(x => x === null) && state.lib.slice(32, 64).every(x => x === null));
   document.getElementById("result").textContent = "RESULT\n" + checks.join("\n") + `\n(dropped ${dev.dropped} messages, status "${$("status").textContent}")`;

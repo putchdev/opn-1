@@ -205,6 +205,7 @@ table.parts select { min-height: 38px; width: 100%; }
       <div class="row" style="align-items:center;gap:24px">
         <div style="display:flex;flex-direction:column;gap:4px;min-width:220px">
           <span class="cap" id="edwhere" style="color:var(--pink)"></span>
+          <span class="sub hide" id="edmulti">Multi is in use: the patch you pick here becomes part 1's.</span>
           <input type="text" id="edname" maxlength="11" class="chrome" style="font-size:28px;min-height:48px;caret-color:#fff;background:none;border:0;border-bottom:1px solid var(--line2);padding:0;width:260px" aria-label="Patch name">
         </div>
         <label class="field">PATCH <select id="edslot" style="max-width:220px"></select></label>
@@ -1266,6 +1267,7 @@ $("exportbank").onclick = () => {                // VOPM text, detune on 2612.or
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 };
+function multiUsed() { return state.mode !== 0 || state.parts.some((x, p) => x.chan !== (p ? CH_OFF : CH_ALL)); }
 function partChan(p) { const c = state.mode === 1 ? p : state.parts[p].chan; return c === CH_ALL ? 0 : c; }
 async function audition(p) {                    // onto part 1, then a note on its channel
   if (!state.out) { setStatus("The FM-1 is not connected.", "err"); return; }
@@ -1317,6 +1319,7 @@ function renderEditor() {
   ss.value = state.ed.slot;
   if (!e) return;
   $("edwhere").textContent = `PATCH ${slotName(state.ed.slot)}`;
+  $("edmulti").classList.toggle("hide", !multiUsed());
   $("edname").value = e.name;
   $("edsave").textContent = "Save to " + slotName(state.ed.slot);
   const algs = $("algs");
@@ -1394,6 +1397,7 @@ async function readParts() {
 }
 function renderParts() {
   $("mode").value = state.mode;
+  $("edmulti").classList.toggle("hide", !multiUsed());
   const t = $("partstable"), used = state.lib.map((p, s) => ({ p, s })).filter(x => x.p);
   t.innerHTML = "<tr><th>PART</th><th>SOUND</th><th>MIDI CHANNEL</th><th>LEVEL</th><th>TRIGGER</th><th>TIME (MS)</th></tr>";
   state.parts.forEach((pt, p) => {
@@ -1434,7 +1438,7 @@ $("single").onclick = () => job("Setting", async () => {       // part 1 on All,
   renderParts();
   setStatus("One synth: part 1 plays on All. Keep to make it stick.", "ok");
 });
-$("keepparts").onclick = () => job("Keeping", async () => { const r = await keep(); setStatus(r === 0 ? "Parts kept." : "Not kept: error " + r, r === 0 ? "ok" : "err"); });
+$("keepparts").onclick = () => job("Keeping", async () => { const r = await keep(); setStatus(r === 0 ? "Multi kept." : "Not kept: error " + r, r === 0 ? "ok" : "err"); });
 
 // ---- the Drums tab: the kit and the PSG shapes found in the songs
 function renderDrums() {

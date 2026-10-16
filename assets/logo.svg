@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 84" width="240" height="84" role="img" aria-label="OPN-1">
+  <defs>
+    <linearGradient id="chrome" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#96aadc"/>
+      <stop offset="0.46" stop-color="#ffffff"/>
+      <stop offset="0.5" stop-color="#464e64"/>
+      <stop offset="0.56" stop-color="#5a5460"/>
+      <stop offset="1" stop-color="#f0d8c0"/>
+    </linearGradient>
+  </defs>
+  <rect width="240" height="84" rx="8" fill="#050506"/>
+  <g font-family="Arial Black, Impact, sans-serif" font-size="40" font-style="italic" font-weight="900" text-anchor="middle">
+    <text x="123" y="47" fill="#7a0e14">OPN-1</text>
+    <text x="120" y="44" fill="url(#chrome)">OPN-1</text>
+  </g>
+  <rect x="0" y="56" width="240" height="6" fill="#e8242c"/>
+  <rect x="0" y="65" width="240" height="2" fill="#e8242c"/>
+  <rect x="0" y="70" width="240" height="1" fill="#7a0e14"/>
+</svg>

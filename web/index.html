@@ -41,6 +41,8 @@ button:hover { border-color: var(--acc); }
 button:disabled { opacity: .5; cursor: default; border-color: var(--line); }
 button.primary { background: linear-gradient(180deg, #ff4a50, var(--acc) 55%, #a8141b); color: #fff; border-color: #ff4a50; font-weight: 700; padding: 10px 18px; text-transform: uppercase; letter-spacing: .5px; }
 button.small { padding: 4px 10px; font-size: 13px; }
+a.gh { color: var(--dim); font-size: 13px; text-decoration: none; padding: 4px 6px; }
+a.gh:hover { color: var(--text); }
 button.on { background: var(--acc); color: #fff; border-color: #ff4a50; }
 select, input[type=number] { font: inherit; color: var(--text); background: var(--soft); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; }
 .pill { display: inline-flex; align-items: center; gap: 8px; border-radius: 999px; padding: 6px 14px; font-size: 13px; }
@@ -126,6 +128,7 @@ table.list th { color: var(--dim); font-weight: normal; }
   <div class="right">
     <button id="pill" class="pill" title="MIDI connection (Advanced has the output)"><span class="dot"></span><span id="pilltext">Starting</span></button>
     <button id="panic" class="small" title="Every note off">Panic</button>
+    <a class="gh" href="https://github.com/putchdev/opn-1" target="_blank" rel="noopener">GitHub</a>
   </div>
 </header>
 <main>

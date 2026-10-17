@@ -1754,7 +1754,10 @@ static void draw_play(void)                     /* the part's sound: its name, i
 {
     char s[40], *q = s;
     const char *name = "";
-    if (ui_sel < NPART && midi_mode == MODE_GENMDM) {   /* CCs set the sound: named after the slot that has it */
+    if (ui_sel == NPART - 1u && midi_mode == MODE_GENMDM && kit_n) {   /* FM channel 6 is the kit's DAC */
+        put_str(&q, "FM 6 PLAYS THE KIT");
+        name = "DRUMS";
+    } else if (ui_sel < NPART && midi_mode == MODE_GENMDM) {   /* CCs set the sound: named after the slot that has it */
         gm_shown = set_match(&pt[ui_sel].p);
         if (gm_shown >= 0) { put_str(&q, "PATCH "); put_slot(&q, (uint32_t)gm_shown); name = lib[gm_shown].name; }
         else { put_str(&q, "NOT IN THE LIBRARY"); name = pt[ui_sel].p.name[0] ? pt[ui_sel].p.name : "GENMDM"; }

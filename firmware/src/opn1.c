@@ -1581,17 +1581,13 @@ static uint16_t chrome_y0, chrome_h;            /* the rows the chrome marker co
 
 static const char *msg;                         /* a moment's word in the header (SAVED), until msg_until */
 static uint32_t msg_until;
-static char shown_time[24];                     /* (the monitor's) */
-static void draw_changed(char *shown, uint32_t cap, uint32_t x, uint32_t y, uint32_t w, const char *s, uint16_t c, int align)
-{
-    uint32_t i;
-    for (i = 0; i < cap && shown[i] == s[i] && s[i]; i++) ;
-    if (i < cap && shown[i] == s[i]) return;
-    for (i = 0; i + 1u < cap && s[i]; i++) shown[i] = s[i];
-    shown[i] = 0;
-    draw_text_box(x, y, w, &FONT_S, s, c, align);
-}
 
+/* SEQ: a row a channel. Its pieces (a note, a meter, a name) are drawn one a loop over the grid (see mon_step) */
+static uint8_t mon;                             /* the monitor is on the screen */
+typedef struct { char note[4]; uint8_t key, bar; char name[12]; } mon_row_t;
+static mon_row_t mon_now[10], mon_shown[10];
+static uint32_t mon_dirty;                      /* bit 3r + piece (0 note, 1 meter, 2 name): to draw */
+#define MON_Y(r) (28u + 18u * (r))
 static void put_str(char **d, const char *s) { while (*s) *(*d)++ = *s++; **d = 0; }
 static void put_slot(char **d, uint32_t n)      /* "B2 07" */
 {
@@ -1611,6 +1607,11 @@ static void head_text(char *s)                  /* the header's left: a message,
     char *p = s;
     if (msg && (int32_t)(fm1_ms - msg_until) < 0) { put_str(&p, msg); return; }
     msg = 0;
+    if (mon) {
+        put_str(&p, "SEQ  ");
+        if (!song_text(p)) put_str(&p, "LIVE");
+        return;
+    }
     if (song_text(s)) return;
     if (page == PG_PARTS) put_str(&p, "MULTI: ");
     else if (ui_sel < NPART && !multi_used()) { put_str(&p, "FM"); return; }
@@ -1631,7 +1632,7 @@ static void draw_head(void)
     cv_rect(0, 0, 240, 18, C_BLACK);
     head_text(s);
     cv_text(6, 1, &FONT_S, s, msg ? C_PINK : C_WHITE);
-    if (ui_sel < NPART && lib_any()) { char t[8], *p = t; put_slot(&p, pt[ui_sel].slot); text_r(234, 1, &FONT_S, t, C_PINK); }
+    if (!mon && ui_sel < NPART && lib_any()) { char t[8], *p = t; put_slot(&p, pt[ui_sel].slot); text_r(234, 1, &FONT_S, t, C_PINK); }
     cv_rect(0, 18, 240, 2, C_ACC);
     cv_rect(0, 21, 240, 1, C_RED_DK);
 }
@@ -1809,6 +1810,11 @@ static void draw_foot(void)
     char s[16], *q = s;
     uint32_t v;
     cv_rect(0, 214, 240, 1, C_ACC);
+    if (mon) {
+        cv_text(6, 220, &FONT_S, "REC: GRAB", C_LBL);
+        text_r(234, 220, &FONT_S, "SEQ: BACK", C_LBL);
+        return;
+    }
     put_str(&q, "OCT ");
     *q++ = ui_oct < 0 ? '-' : '+'; *q++ = (char)('0' + (ui_oct < 0 ? -ui_oct : ui_oct)); *q = 0;
     cv_text(6, 220, &FONT_S, s, C_LBL);
@@ -1823,6 +1829,13 @@ static void draw_foot(void)
     text_r(234, 220, &FONT_S, s, C_LBL);
 }
 
+static void grid_at(int32_t x, int32_t y)       /* the grid under a piece of the canvas that goes at x, y (y >= 22) */
+{
+    int32_t i;
+    for (i = (12 - x % 12) % 12; i < (int32_t)cv_w; i += 12) cv_rect(i, 0, 1, (int32_t)cv_h, C_GRID);
+    for (i = (12 - (y - 22) % 12) % 12; i < (int32_t)cv_h; i += 12) cv_rect(0, i, (int32_t)cv_w, 1, C_GRID);
+}
+
 static void draw_scene(void)                    /* everything; the canvas keeps only its band */
 {
     int32_t y;
@@ -1830,6 +1843,12 @@ static void draw_scene(void)                    /* everything; the canvas keeps 
     for (y = 0; y < 240; y += 12) cv_rect(y, 22, 1, 192, C_GRID);
     chrome_h = 0;
     draw_head();
+    if (mon) {
+        static const char *const L[10] = {"FM1", "FM2", "FM3", "FM4", "FM5", "FM6", "PSG1", "PSG2", "PSG3", "NSE"};
+        for (y = 0; y < 10; y++) cv_text(4, (int32_t)MON_Y(y), &FONT_S, L[y], y < 6 ? C_PINK : C_LBL);
+        draw_foot();
+        return;
+    }
     if (page == PG_ENV) draw_envs();
     else if (page == PG_TONE) draw_op();
     else if (page == PG_PARTS) draw_parts();
@@ -1854,10 +1873,12 @@ static void draw_band(void)                     /* the first dirty band, if any 
         for (i = 0; i < n; i++)
             if (cv_px[i] == swap16(C_MARK)) cv_px[i] = swap16(chrome(i / cv_w + BAND_Y[b] - chrome_y0, chrome_h));
     cv_blit(0, BAND_Y[b]);
+    if (mon)                                    /* (the band went over the rows' pieces: due again) */
+        for (i = 0; i < 10u; i++)
+            if (MON_Y(i) + 16u > BAND_Y[b] && MON_Y(i) < BAND_Y[b + 1u]) mon_dirty |= 7u << (3u * i);
 }
 
-/* ---- SEQ: what the chips are doing, a row a channel, read from their state (a song's, or the panel's own) */
-static uint8_t mon;                             /* the monitor is on the screen */
+/* ---- SEQ: what the chips are doing, read from their state (a song's, or the panel's own) */
 
 static void chip_patch(uint32_t c, patch_t *p, const char *name)   /* FM channel c's registers now, as a patch */
 {
@@ -1921,11 +1942,8 @@ static char *note_name(char *s, int32_t n)
     return s + 2;
 }
 
-/* the monitor is drawn a small piece at a time (a note, a meter, a name), one per pass of the main loop: the
- * panel's SPI takes ~5 ms for a whole row, and MIDI (a song's stream) must be read between */
-typedef struct { char note[4]; uint8_t key, bar; char name[12]; } mon_row_t;
-static mon_row_t mon_now[10], mon_shown[10];
-static uint32_t mon_dirty;                      /* bit 3r + piece (0 note, 1 meter, 2 name): to draw */
+/* the rows change a small piece at a time, one per pass of the main loop, not as bands: a song's stream must be
+ * read between, and most of a row stays as it was */
 
 static void mon_scan(void)                      /* each row's state now; the pieces that differ marked */
 {
@@ -2012,24 +2030,27 @@ static void mon_step(void)                      /* one piece, if any is due */
     at = (at + k) % 30u;
     mon_dirty &= ~(1u << at);
     r = at / 3u;
-    y = 66u + 16u * r;
+    y = MON_Y(r);
     m = &mon_now[r];
     switch (at % 3u) {
     case 0:
-        cv_begin(36, 16, C_BLACK);
+        cv_begin(30, 16, C_BLACK);
+        grid_at(40, (int32_t)y);
         cv_text(0, 0, &FONT_S, m->note, m->key ? C_WHITE : C_OFF);
-        cv_blit(38, y);
+        cv_blit(40, y);
         mon_shown[r].key = m->key;
         for (k = 0; k < 4u; k++) mon_shown[r].note[k] = m->note[k];
         break;
     case 1:
         cv_begin(54, 8, C_BLACK);
-        for (k = 0; k < 8u; k++) cv_rect(7 * (int32_t)k, 0, 5, 8, k < m->bar ? C_ACC : RGB(40, 40, 46));
+        grid_at(76, (int32_t)y + 4);
+        for (k = 0; k < 8u; k++) cv_rect(7 * (int32_t)k, 0, 5, 8, k < m->bar ? (k < 6u ? C_ACC : C_OP1) : C_BOX);
         cv_blit(76, y + 4u);
         mon_shown[r].bar = m->bar;
         break;
     default:
         cv_begin(102, 16, C_BLACK);
+        grid_at(138, (int32_t)y);
         cv_text(0, 0, &FONT_S, m->name, C_SOFT);
         cv_blit(138, y);
         for (k = 0; k < 12u; k++) mon_shown[r].name[k] = m->name[k];
@@ -2038,38 +2059,15 @@ static void mon_step(void)                      /* one piece, if any is due */
     at = (at + 1u) % 30u;
 }
 
-static void mon_open(void)                      /* the monitor's ground and labels; every piece then due */
+static void mon_open(void)                      /* the monitor's ground (as bands) and then every piece */
 {
-    static const char *const L[10] = {"FM1", "FM2", "FM3", "FM4", "FM5", "FM6", "PSG1", "PSG2", "PSG3", "NSE"};
     uint32_t r;
-    lcd_fill(0, 64, 240, 163, C_BLACK);
-    shown_time[0] = 0x7F;
+    dirty = BANDS_ALL;
     for (r = 0; r < 10u; r++) {
-        draw_text_box(2, 66u + 16u * r, 36, &FONT_S, L[r], C_OFF, 0);
         mon_shown[r].note[0] = mon_shown[r].name[0] = 0x7F;   /* (matches nothing: all redrawn) */
         mon_shown[r].bar = 0xFF;
     }
     mon_scan();
-}
-
-static void draw_mon_time(void)                 /* top right, by the title: the song's time, or LIVE */
-{
-    char s[24], *p = s;
-    if (msg && (int32_t)(fm1_ms - msg_until) < 0) {
-        const char *t = msg;
-        while ((*p++ = *t++)) ;
-    } else if (vgm.playing) {
-        uint32_t sec = vgm.played / 44100u;
-        p = put_num(p, (int32_t)(sec / 60u), 0);
-        *p++ = ':';
-        *p++ = (char)('0' + sec % 60u / 10u);
-        *p++ = (char)('0' + sec % 10u);
-        *p = 0;
-    } else {
-        const char *t = "LIVE";
-        while ((*p++ = *t++)) ;
-    }
-    draw_changed(shown_time, sizeof shown_time, 176, 10, 60, s, C_OFF, 2);
 }
 
 /* REC: each FM channel's sound now onto the panel's FM parts (and MIDI channels 1-6): the set's instrument when it
@@ -2267,11 +2265,11 @@ static void app_main(void)
         {                                       /* the voices' dots */
             uint32_t v, m = n_voices() << 8;
             for (v = 0; v < 6u; v++) m |= (uint32_t)fmc[v].on << v;
-            if (m != shown_v) { shown_v = m; dirty |= BAND_FOOT; }
+            if (m != shown_v) { shown_v = m; if (!mon) dirty |= BAND_FOOT; }
         }
         ui_sel = sel;
         ui_oct = oct;
-        if (!mon) draw_band();
+        draw_band();
         song_report();
         if (vgm.playing != was_playing) {       /* a song started or ended */
             was_playing = vgm.playing;
@@ -2297,8 +2295,7 @@ static void app_main(void)
         psg_shapes();
         if (fm1_ms - t_load >= 500u) {          /* the worst interrupt of the last half second */
             t_load = fm1_ms;
-            if (mon) draw_mon_time();
-            else {                              /* the header (a message ending, a song's time), the CPU's load */
+            {                                   /* the header (a message ending, a song's time), the CPU's load */
                 char h[40];
                 uint32_t i;
                 head_text(h);

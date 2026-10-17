@@ -1,59 +1,89 @@
 <p align="center"><img src="assets/logo.svg" width="240" alt="OPN-1"></p>
 
-<p align="center"><b>The Mega Drive / Genesis sound chips as an instrument, on the M-VAVE FM-1.</b></p>
+<p align="center"><b>The Mega Drive / Genesis sound chips as a synth, on the M-VAVE FM-1.</b></p>
 
-<p align="center"><a href="https://opn-1.putch.co.uk/"><b>Open the web app</b></a> (Chrome or Edge)</p>
+<p align="center"><a href="https://opn-1-preview.putch.co.uk/"><b>Open the web app</b></a> (Chrome or Edge; 2.0 preview)</p>
 
-<p align="center"><a href="https://opn-1.putch.co.uk/sample.mp3">Hear a sample</a>: a new song recorded from an FM-1 running OPN-1, with instruments from Sonic the Hedgehog</p>
+<p align="center"><a href="https://opn-1-preview.putch.co.uk/sample.mp3">Hear a sample</a>: a new song recorded from an FM-1 running OPN-1, with instruments from Sonic the Hedgehog</p>
 
 OPN-1 is open-source firmware for the M-VAVE FM-1 keyboard. It runs accurate recreations of the console's
 two sound chips, the Yamaha YM2612 (six FM channels plus a sample DAC) and the SN76489 PSG (three square waves and
-a noise channel), and makes them playable from the FM-1's own keys and knobs, or over USB MIDI.
+a noise channel), and turns them into a synth you play from the FM-1's own keys and knobs, or over USB MIDI.
 
-A companion web page loads a game's music files, pulls out the instruments, drums and noise sounds the game
-used, and sends them to the FM-1, where they are kept in flash. The same page can stream the original songs to the
-FM-1 and play them back exactly, with a live view of every channel on the device's screen.
+It holds a library of 128 FM patches in 4 banks of 32, like the FM-1's own firmware. The library starts empty: a
+companion web app fills it from VOPM `.opm` patch files, or pulls the instruments out of a game's VGM music, and
+lets you edit, audition and organise them. The same app can stream the original songs to the FM-1 and play them
+back exactly, with a live view of every channel on the device's screen.
 
 <p align="center">
-  <img src="docs/screen-panel.png" width="240" alt="The FM-1 screen playing FM 1">
-  <img src="docs/screen-monitor.png" width="240" alt="The channel monitor during a song: notes, levels and instruments">
+  <img src="docs/screens/fm1-sound.png" width="240" alt="The FM-1 play screen: patch B1 04, its algorithm and the sound knobs">
+  <img src="docs/screens/fm1-envelopes.png" width="240" alt="The four operators' envelopes">
+  <img src="docs/screens/fm1-seq.png" width="240" alt="SEQ: every channel's note, level and patch">
 </p>
 
-> **Status:** every feature below has been tested on a real FM-1. Installing it is at your own risk: see the
-> [disclaimer](#disclaimer).
+> **Status:** 2.0 is in preview on the `opm-synth` branch. Some of it has not been tested on a real FM-1 yet, and
+> installing it is at your own risk: see the [disclaimer](#disclaimer). The released 1.0 is on
+> [the releases page](https://github.com/putchdev/opn-1/releases).
 
 ## Features
 
 - **Accurate chips.** The YM2612 core is a C port of Aaron Giles' ymfm and matches it sample for sample in the
   tests; the PSG is a port of MAME's Sega PSG and matches it tick for tick. Both run in real time on the FM-1's CPU.
-- **A game's sounds to play.** Drop VGM or VGZ files from one game onto the page. It finds the FM instruments (with
-  their vibrato and LFO), the sampled drums and the shaped noise sounds, and sends them to the FM-1, which keeps the
-  last set it was sent.
+- **A patch library.** 128 slots in 4 banks of 32, kept in flash. PRESETS on the FM-1 steps through them and a
+  MIDI program change picks one. Fill them from `.opm` banks (the VOPM format, as in the 2612.org packs) or from a game's VGM
+  songs, into whichever bank and slot you pick, and export a bank back to `.opm`.
+- **One synth by default, six parts when you want them.** Out of the box the FM-1 plays the selected patch, up
+  to six notes at once. **Multi** turns on up to six parts, each with its own patch, MIDI channel, level and trigger: parts
+  on one channel layer, a Delay part comes in after the note starts, and a Release part sounds when it ends.
+- **Edit on the device or the page.** Knob pages for the sound, each operator's tone, all four envelopes drawn,
+  the LFO, vibrato and a doubled detune, and an arpeggiator. The web app's editor shows every operator and envelope
+  at once and plays changes as you make them. SAVE keeps the patch in its slot.
+- **A game's drums and noise.** VGM files give up their sampled drums and the shaped noise and square-wave sounds
+  the game used, playable on channels 10 and 7 to 11.
 - **Songs, streamed.** Original VGM songs play on the FM-1 as the console played them, including DAC drums.
   Nothing is stored on the device: the page streams each song while it plays.
-- **Played like a synth.** Six-voice POLY, any single chip channel, the drum kit or the noise from the keys. Knob
-  pages for the sound, each operator's tone and envelope, the LFO, vibrato and a doubled detune, an arpeggiator,
-  and SAVE to keep an edited sound.
-- **See what a song does.** SEQ shows every channel's note, level and instrument in real time. REC grabs the sounds
-  a song is playing right now onto the FM parts, ready to play.
-- **MIDI over USB or the TRS jack.** GenMDM's layout (channels 1 to 6 FM, 7 to 9 square waves, 10 drums, 11 noise, with GenMDM's control
-  changes), or a mode where any channel plays the part on the screen.
+- **See what a song does.** SEQ shows every channel's note, level and patch in real time. REC grabs the sounds a
+  song is playing right now, ready to play.
+- **MIDI over USB or the TRS jack.** By default the FM patch plays on channels 1 to 6 and 12 to 15, the square
+  waves on 7 to 9, the drums on 10 and noise on 11. GenMDM's layout and control changes are a setting away.
+
+## The FM-1's screens
+
+| | | |
+| :---: | :---: | :---: |
+| <img src="docs/screens/fm1-sound.png" width="240" alt="Play screen"> | <img src="docs/screens/fm1-operator.png" width="240" alt="Operator page"> | <img src="docs/screens/fm1-envelopes.png" width="240" alt="Envelopes page"> |
+| **HOME:** the patch, its algorithm, the main knobs | **EDIT:** one operator, large. Again for the next | **ENV:** all four envelopes |
+| <img src="docs/screens/fm1-lfo.png" width="240" alt="LFO page"> | <img src="docs/screens/fm1-vibrato.png" width="240" alt="Vibrato page"> | <img src="docs/screens/fm1-arpeggio.png" width="240" alt="Arpeggiator page"> |
+| **LFO:** rate, depths and which operators it moves | **FX:** vibrato and a doubled detune | **ARP:** the arpeggiator |
+| <img src="docs/screens/fm1-global.png" width="240" alt="Global page"> | <img src="docs/screens/fm1-multi.png" width="240" alt="Multi page"> | <img src="docs/screens/fm1-seq.png" width="240" alt="SEQ monitor"> |
+| **GLO:** velocity, bend range, MIDI mode, tuning | **GLO again:** Multi, the six parts | **SEQ:** every channel live |
+
+## The web app
+
+<p align="center"><img src="docs/screens/web-library.png" width="720" alt="The Library: .opm patches imported, bank 1 on the FM-1"></p>
+<p align="center"><b>Library:</b> import <code>.opm</code> banks or VGM songs, tick the patches, pick a bank and slot, and send them.</p>
+
+<p align="center"><img src="docs/screens/web-editor.png" width="720" alt="The Editor: a patch's algorithm and its four operators with their envelopes"></p>
+<p align="center"><b>Editor:</b> pick a patch, change it and hear it on the FM-1 as you go, then save it to its slot.</p>
+
+<p align="center"><img src="docs/screens/web-multi.png" width="720" alt="The Multi tab: six parts with their patches, MIDI channels, levels and triggers"></p>
+<p align="center"><b>Multi:</b> the six parts, for layers and multitimbral setups. One synth puts it back.</p>
 
 ## Getting started
 
 1. **Install the firmware** on the FM-1, as in [Installing the firmware](#installing-the-firmware) below.
-2. **Open the page** in Chrome or Edge: **<https://opn-1.putch.co.uk/>**. To run it locally instead
+2. **Open the web app** in Chrome or Edge: **<https://opn-1-preview.putch.co.uk/>**. To run it locally instead
    (Web MIDI needs https or localhost):
 
    ```sh
    cd web && python3 -m http.server 8000          # then open http://localhost:8000/
    ```
 
-3. **Load a game.** Drop a few VGM or VGZ files from one Mega Drive game onto the page and press
-   **Send sounds to FM-1**. Several songs from the same game give the most sounds. OPN-1 does not include any game
-   music; use files you have the right to use.
-4. **Play.** The page's **How to use** section explains every button and knob on the FM-1, the MIDI channels, and
-   what to do when something goes wrong.
+3. **Fill the library.** In the Library, drop `.opm` files (or a few VGM or VGZ songs from one game), tick the
+   patches you want, pick a bank and a start slot, and press **Send to FM-1**. OPN-1 does not include any game
+   music or patches; use files you have the right to use.
+4. **Play.** Turn PRESETS to step through the patches. The web app's **Help** tab explains every button and knob on
+   the FM-1, and what to do when something goes wrong.
 
 **Rescue:** if the FM-1 ever fails to start, hold **OCT-** while switching it on. It starts the USB updater only,
 so a working firmware can be installed from there.
@@ -76,7 +106,7 @@ Open Command Prompt in the project folder and run:
 
 ```bat
 py -m pip install mido python-rtmidi
-py tools\fm1_install.py opn1-1.0.0.fwsc
+py tools\fm1_install.py opn1-2.0.0.fwsc
 ```
 
 **macOS.** Install Python from [python.org](https://www.python.org/downloads/) (or `brew install python`). Open
@@ -85,14 +115,14 @@ Terminal in the project folder and run:
 ```sh
 python3 -m venv ~/.venv/fm1
 ~/.venv/fm1/bin/pip install mido python-rtmidi
-~/.venv/fm1/bin/python tools/fm1_install.py opn1-1.0.0.fwsc
+~/.venv/fm1/bin/python tools/fm1_install.py opn1-2.0.0.fwsc
 ```
 
 **Linux.** On Debian or Ubuntu:
 
 ```sh
 sudo apt install python3-mido python3-rtmidi
-python3 tools/fm1_install.py opn1-1.0.0.fwsc
+python3 tools/fm1_install.py opn1-2.0.0.fwsc
 ```
 
 On other distributions, use the macOS commands (Python's `venv` module may be a separate package).
@@ -103,6 +133,7 @@ again and it finishes.
 
 To go back to the official firmware or another one, use the
 [FM-1 Firmware Hub](https://fm1.designburgapps.com) in Chrome or Edge.
+
 ## Disclaimer
 
 Installing OPN-1, or any custom firmware, on an M-VAVE FM-1 is done entirely at the owner's own risk. It may void
@@ -121,12 +152,10 @@ still contain mistakes; reports and fixes are welcome.
 
 | | |
 | --- | --- |
-| [docs/MIDI.md](docs/MIDI.md) | The full MIDI protocol: playing, streaming songs, sending sound sets |
+| [docs/MIDI.md](docs/MIDI.md) | The full MIDI protocol: playing, Multi, the library, streaming songs |
 | [docs/DEVELOPING.md](docs/DEVELOPING.md) | Building, the host simulator, the accuracy tests, the code's layout |
 | [docs/RULES.md](docs/RULES.md) | The FM-1 chip's rules and what the build checks for |
 | [docs/API.md](docs/API.md) | What the platform layer gives the app |
-
-<p align="center"><img src="docs/page.png" width="720" alt="The web page with a game loaded: its songs, instruments, drums and noise sounds"></p>
 
 ## Credits
 

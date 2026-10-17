@@ -108,8 +108,11 @@ DRIVER = r"""<script>
     await sendSounds();
     const k = kitImage(state.drums);
     const kitOk = k.n === 0 || (dev.bank.length >= k.img.length && k.img.every((x, i) => dev.bank[i] === x));
+    state.kitCrc = null;                        // as after a reload: the kit sent is remembered by the browser
+    const kitKnown = k.n === 0 || kitOnFm1(), other = (state.drums = state.drums.slice(1), !kitOnFm1());
     document.getElementById("result").textContent = `RESULT kit ${kitOk ? "ok" : "BAD"} (${k.n} sounds, ${dev.bank.length} B), ` +
-      `instruments ${dev.patches || 0}, PSG shapes ${dev.psgs || 0}, saved ${dev.saved || 0}, dropped ${dev.dropped} messages, dry 0, status "${$("status").textContent}"`;
+      `instruments ${dev.patches || 0}, PSG shapes ${dev.psgs || 0}, saved ${dev.saved || 0}, kit remembered ${kitKnown ? "ok" : "BAD"}, ` +
+      `another kit not taken for it ${other ? "ok" : "BAD"}, dropped ${dev.dropped} messages, dry 0, status "${$("status").textContent}"`;
     return;
   }
   while (busy) await new Promise(r => setTimeout(r, 50));

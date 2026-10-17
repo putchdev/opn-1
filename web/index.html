@@ -338,6 +338,7 @@ const state = {
   ed: { patch: null, slot: 0 },                 // (heard on part 1)
   songs: [], found: [], drums: [], psgs: [],
   kitOn: false, shapesOn: false,                // send the songs' kit and shapes with the patches
+  kitCrc: null,                                 // the CRC-32 of the last kit sent from here
   fw: null,                                     // the FM-1's OPN-1: "2.0.0" or "DEV", false if not 2.x, null unknown
 };
 const $ = id => document.getElementById(id);
@@ -1651,8 +1652,17 @@ async function sendKit() {
   const kit = kitImage(state.drums);
   setStatus("Sending the drum kit...");
   await sendImage(kit.img, 0x61, 0x63);
-  state.kitSent = true;
+  try { localStorage.setItem("opn1.kit", String(crc32(kit.img))); } catch (e) { /* (then only until the page closes) */ }
+  state.kitCrc = crc32(kit.img);
   return kit.n;
+}
+// the songs' kit is the one on the FM-1: the last this browser sent (the FM-1 keeps it; another browser's kit is not known)
+function kitOnFm1() {
+  const k = kitImage(state.drums);
+  if (!k.n) return false;
+  let sent = state.kitCrc;
+  try { sent ??= Number(localStorage.getItem("opn1.kit")); } catch (e) { /* (no storage) */ }
+  return sent === crc32(k.img);
 }
 async function sendShapes() {
   const pl = state.psgs.slice(0, PSG_SET_MAX);
@@ -1923,7 +1933,7 @@ function* vgmMidi(sp, hitAt, loops) {           // [t (samples), status, d1, d2]
   yield* out.splice(0);
 }
 function kitHits(file, live) {                  // the song's DAC sounds' offsets -> the kit's notes, as sent
-  if (live && !state.kitSent) return () => -1;  // (without a kit, channel 10 is the noise)
+  if (live && !kitOnFm1()) return () => -1;     // (without its kit, channel 10 is the noise)
   const n = kitImage(state.drums).n, at = [], len = {};
   state.drums.slice(0, n).forEach(d => { len[d.note] = d.bytes.length; (d.at?.[file] || []).forEach(o => at.push([o, d.note])); });
   const f = pos => { for (const [o, note] of at) if (Math.abs(pos - o) <= 16) return note; return -1; };
@@ -1969,7 +1979,7 @@ async function playMidi(i) {                    // live, in GenMDM mode; the par
     const gen = vgmMidi(s.mid, kitHits(s.file, true), $("loop").checked ? Infinity : 0), on = new Map();
     const t0 = performance.now() + 300;
     let next = gen.next(), last = 0, shown = 0;
-    setStatus(state.drums.length && !state.kitSent ? "Playing as MIDI, without drums: send the kit from Drums for them."
+    setStatus(state.drums.length && !kitOnFm1() ? "Playing as MIDI, without drums: send these songs' kit (Library or Drums) for them."
       : "Playing as MIDI (GenMDM mode).", "ok");
     while (midiRun === run && !next.done) {
       const horizon = performance.now() + 250;

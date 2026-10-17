@@ -1279,7 +1279,7 @@ function renderLib() {
   for (let b = 0; b < 4; b++) {
     const s = state.lib.slice(b * 32, b * 32 + 32), known = s.every(x => x !== undefined);
     banks.append(el("button", { role: "tab", class: b === state.bank ? "on" : "", "aria-selected": b === state.bank,
-      onclick: () => { state.bank = b; renderLib(); } }, `B${b + 1}`, el("span", {}, known ? `${s.filter(Boolean).length}/32` : "?/32")));
+      onclick: () => { state.bank = b; $("tbank").value = b; renderTarget(); } }, `B${b + 1}`, el("span", {}, known ? `${s.filter(Boolean).length}/32` : "?/32")));
   }
   const incoming = new Set($("importbox").classList.contains("hide") ? [] : targetSlots());
   const grid = $("slots");
@@ -1288,7 +1288,7 @@ function renderLib() {
     const s = state.bank * 32 + i, p = state.lib[s], inc = incoming.has(s);
     const label = p ? p.name : p === null ? "Empty" : "?";
     grid.append(el("button", { class: "slot" + (p ? "" : " empty") + (inc ? " incoming" : "") + (s === state.sel ? " sel" : ""),
-      onclick: () => { state.sel = s; renderLib(); } },
+      onclick: () => { state.sel = s; $("tslot").value = i; renderTarget(); } },   // (imports go from the slot picked)
       el("span", { class: "n" }, el("span", {}, String(i + 1).padStart(2, "0")), el("span", {}, inc ? "NEW" : p ? `ALG ${(p.regs[0] & 7) + 1}` : "")),
       el("span", { class: "t" }, label)));
   }

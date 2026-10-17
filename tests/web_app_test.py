@@ -205,6 +205,8 @@ DRIVER = r"""<script>
     check("Play MIDI: GenMDM mode while it plays, then the parts as they were", dev.mode === 0 && [0, 1, 2, 3, 4, 5].every(p => dev.frames.some(f => f.t === p && f.vals.every(v => v === 0 || v === 0xC0))) &&
       dev.parts.every((x, i) => x.slot === slots[i] && x.level === 127) && midiPlaying === -1);
   }
+  document.querySelectorAll("#banks button")[2].click(); document.querySelectorAll("#slots button")[9].click();
+  check("picking a bank and slot sets where imports go", $("tbank").value === "2" && $("tslot").value === "9" && state.bank === 2 && state.sel === 73);
   state.bank = 1; $("clearbank").click(); await sleep(50);
   check("clearing a bank asks first", $("done").open && $("doneok").textContent === "Clear it");
   $("doneok").click(); await idle();

@@ -127,7 +127,6 @@ const fakeOut = { name: "FM-1 MIDI 1", id: "fm1", send(data) {
   }
 } };
 navigator.requestMIDIAccess = async () => ({ outputs: new Map([["fm1", fakeOut]]), inputs: new Map([["fm1in", fakeIn]]), onstatechange: null });
-window.confirm = () => true;
 const errs = [];
 addEventListener("error", e => errs.push(e.message + " @" + e.lineno));
 addEventListener("unhandledrejection", e => errs.push("rejected: " + (e.reason && e.reason.message || e.reason)));
@@ -206,7 +205,9 @@ DRIVER = r"""<script>
     check("Play MIDI: GenMDM mode while it plays, then the parts as they were", dev.mode === 0 && [0, 1, 2, 3, 4, 5].every(p => dev.frames.some(f => f.t === p && f.vals.every(v => v === 0 || v === 0xC0))) &&
       dev.parts.every((x, i) => x.slot === slots[i] && x.level === 127) && midiPlaying === -1);
   }
-  state.bank = 1; $("clearbank").click(); await idle();
+  state.bank = 1; $("clearbank").click(); await sleep(50);
+  check("clearing a bank asks first", $("done").open && $("doneok").textContent === "Clear it");
+  $("doneok").click(); await idle();
   check("bank 2 cleared", dev.lib.every(x => x === null) && state.lib.slice(32, 64).every(x => x === null));
   document.getElementById("result").textContent = "RESULT\n" + checks.join("\n") + `\n(dropped ${dev.dropped} messages, status "${$("status").textContent}")`;
 })();

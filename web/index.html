@@ -165,7 +165,7 @@ table.parts select { min-height: 38px; width: 100%; }
   <h2 class="chrome" id="donetitle"></h2>
   <p id="donetext"></p>
   <div class="progress" id="doneprog" style="width:100%"><div id="donebar"></div></div>
-  <div class="row" style="justify-content:flex-end;margin-top:18px"><button class="btn go" id="doneok">OK</button></div>
+  <div class="row" style="justify-content:flex-end;margin-top:18px"><button class="btn hide" id="donecancel">Cancel</button><button class="btn go" id="doneok">OK</button></div>
 </dialog>
 <main>
   <!-- LIBRARY -->
@@ -349,6 +349,25 @@ function setProgress(f) {                       // 0..1, or null to hide
   if (f !== null) $("progbar").style.width = $("donebar").style.width = (100 * Math.max(0, Math.min(1, f))).toFixed(1) + "%";
 }
 // a transfer in a popup, so its outcome is seen wherever the page is scrolled to
+let answer = null;                              // the open question's resolve
+function ask(title, text, yes) {                // a question in the popup: true if yes
+  $("donetitle").textContent = title;
+  $("donetext").textContent = text; $("donetext").className = "";
+  $("doneprog").classList.add("hide");
+  $("doneok").textContent = yes; $("doneok").disabled = false;
+  $("donecancel").classList.remove("hide");
+  if (!$("done").open) $("done").showModal();
+  $("donecancel").focus();
+  return new Promise(r => { answer = r; });
+}
+function answered(yes) {
+  const r = answer;
+  answer = null;
+  $("donecancel").classList.add("hide");
+  $("doneok").textContent = "OK";
+  if (!yes) $("done").close();
+  r(yes);
+}
 async function shownJob(what, fn) {
   const d = $("done");
   $("donetitle").textContent = what + "...";
@@ -363,8 +382,11 @@ async function shownJob(what, fn) {
   $("doneok").disabled = false;
   $("doneok").focus();
 }
-$("doneok").onclick = () => $("done").close();
-$("done").oncancel = e => { if ($("doneok").disabled) e.preventDefault(); };   // (Esc only once it has finished)
+$("doneok").onclick = () => answer ? answered(true) : $("done").close();
+$("donecancel").onclick = () => answered(false);
+$("done").oncancel = e => {                     // Esc: no to a question; closes only once a transfer has finished
+  if (answer) { e.preventDefault(); answered(false); } else if ($("doneok").disabled) e.preventDefault();
+};
 const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 const NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -1275,20 +1297,23 @@ function renderLib() {
     `${slotName(state.sel)} ${p ? p.name : "(empty)"}: program change ${state.sel}`;
   $("editslot").disabled = !p; $("clearslot").disabled = !p;
 }
-$("readlib").onclick = () => job("Reading", readLib);
+$("readlib").onclick = () => shownJob("Reading", readLib);
 $("sendimp").onclick = () => sendSounds();
-$("clearslot").onclick = () => job("Emptying", async () => {
+$("clearslot").onclick = async () => {
   const s = state.sel;
-  await control(0x5E, s, "cleared", v => v === s);
-  state.lib[s] = null;
-  await keep();
-  renderLib();
-  setStatus(slotName(s) + " emptied.", "ok");
-});
-$("clearbank").onclick = () => {
+  if (!await ask("Empty slot", `Empty ${slotName(s)} ${state.lib[s].name} on the FM-1? Its patch is deleted.`, "Empty it")) return;
+  shownJob("Emptying", async () => {
+    await control(0x5E, s, "cleared", v => v === s);
+    state.lib[s] = null;
+    await keep();
+    renderLib();
+    setStatus(slotName(s) + " emptied.", "ok");
+  });
+};
+$("clearbank").onclick = async () => {
   const b = state.bank;
-  if (!confirm(`Empty bank ${b + 1} on the FM-1? Its 32 slots are cleared.`)) return;
-  job("Clearing", async () => {
+  if (!await ask("Clear bank", `Empty bank ${b + 1} on the FM-1? Its 32 slots are cleared.`, "Clear it")) return;
+  shownJob("Clearing", async () => {
     await control(0x58, b, "cleared", v => v === b);
     for (let i = 0; i < 32; i++) state.lib[b * 32 + i] = null;
     await keep();
@@ -1430,7 +1455,7 @@ function partMoved(p, s) {                      // the FM-1 changed a part's slo
 }
 $("edname").onchange = () => { if (state.ed.patch) { state.ed.patch.name = cleanName($("edname").value); $("edname").value = state.ed.patch.name; edSend(); } };
 $("edrevert").onclick = () => { openEditor().then(edSend); };
-$("edsave").onclick = () => job("Saving", async () => {
+$("edsave").onclick = () => shownJob("Saving", async () => {
   const p = encode(state.ed.patch);
   await writeSlot(state.ed.slot, p);
   const r = await keep();
@@ -1552,8 +1577,8 @@ $("mode").onchange = () => job("Setting", async () => {
   setStatus(["Normal: the FM-1 plays as Setup says.", "GenMDM: MIDI channels 1 to 6 are FM parts 1 to 6, one note each.",
              "Panel: any MIDI channel plays the FM-1's selected part."][m], "ok");
 });
-$("readparts").onclick = () => job("Reading", readParts);
-$("keepparts").onclick = () => job("Keeping", async () => { const r = await keep(); setStatus(r === 0 ? "Setup kept." : "Not kept: error " + r, r === 0 ? "ok" : "err"); });
+$("readparts").onclick = () => shownJob("Reading", async () => { setStatus("Reading the setup..."); await readParts(); setStatus("Setup read.", "ok"); });
+$("keepparts").onclick = () => shownJob("Keeping", async () => { const r = await keep(); setStatus(r === 0 ? "Setup kept." : "Not kept: error " + r, r === 0 ? "ok" : "err"); });
 
 // ---- the Drums tab: the kit and the PSG shapes found in the songs
 function renderDrums() {

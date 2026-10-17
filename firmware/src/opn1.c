@@ -1863,8 +1863,8 @@ static void draw_foot(void)
         text_r(234, 220, &FONT_S, "SEQ: BACK", C_LBL);
         return;
     }
-    put_str(&q, "OCT ");
-    *q++ = ui_oct < 0 ? '-' : '+'; *q++ = (char)('0' + (ui_oct < 0 ? -ui_oct : ui_oct)); *q = 0;
+    if (page == PG_GLO) { if (APP_VER[0] >= '0' && APP_VER[0] <= '9') put_str(&q, "V"); put_str(&q, APP_VER); }   /* (DEV as it is) */
+    else { put_str(&q, "OCT "); *q++ = ui_oct < 0 ? '-' : '+'; *q++ = (char)('0' + (ui_oct < 0 ? -ui_oct : ui_oct)); *q = 0; }
     cv_text(6, 220, &FONT_S, s, C_LBL);
     for (v = 0; v < 6u; v++)
         cv_rect(96 + 9 * (int32_t)v, 224, 7, 7, v >= n_voices() ? C_RED_DK : fmc[v].on ? RGB(60, 207, 122) : C_BOX);
@@ -2181,6 +2181,8 @@ static void app_main(void)
         fm_patch(k);                            /* (an empty patch: silent, until a part takes the voice) */
     }
     parts_init();
+    msg = "OPN-1 " APP_VER;                     /* (the version, a moment at power-on) */
+    msg_until = fm1_ms + 3000u;
     draw_frame();
 
     for (;;) {

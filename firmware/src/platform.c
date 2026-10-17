@@ -45,7 +45,7 @@ enum { ENC_SELECT = 0, ENC_ALGORITHM = 1, ENC_KNOB1 = 2, ENC_KNOB2 = 3, ENC_KNOB
 #define FELUCCA_ID "FM-1_950"                   /* package identity: 95N = OPN-1 build N (tools/build.py) */
 #endif
 #ifndef APP_VER
-#define APP_VER "0.0"
+#define APP_VER "DEV"
 #endif
 
 bootguard_t bootguard __attribute__((section(".noinit")));

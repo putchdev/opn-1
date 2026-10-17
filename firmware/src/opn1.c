@@ -1098,6 +1098,21 @@ static int parts_rx(uint32_t d1, uint32_t d2)   /* 1: the CC was the parts' setu
     return 1;
 }
 
+static void version_send(void)                  /* APP_VER as 1C major, 1D minor, 1E patch (1C 127: a DEV build) */
+{
+    const char *s = APP_VER;
+    uint32_t n[3] = {127u, 0, 0}, k = 0;
+    if (*s >= '0' && *s <= '9')
+        for (n[0] = 0; *s && k < 3u; s++) {
+            if (*s == '.') k++;
+            else if (*s >= '0' && *s <= '9') n[k] = n[k] * 10u + (uint32_t)(*s - '0');
+            else break;
+        }
+    midi_send(0xBF, 0x1C, n[0] & 0x7Fu);
+    midi_send(0xBF, 0x1D, n[1] & 0x7Fu);
+    midi_send(0xBF, 0x1E, n[2] & 0x7Fu);
+}
+
 static int song_rx(uint32_t st, uint32_t d1, uint32_t d2)    /* 1: the message was the song's */
 {
     uint32_t ch = st & 15u, type = st & 0xF0u, r;
@@ -1118,6 +1133,7 @@ static int song_rx(uint32_t st, uint32_t d1, uint32_t d2)    /* 1: the message w
     else if (d1 >= 0x7Du) upl.want_len |= d2 << (7u * (d1 - 0x7Du));
     else if (d1 >= 0x6Bu && d1 <= 0x6Fu && !upl.c_on) return 1;    /* (a chunk's parts with no begin: its was lost) */
     else switch (d1) {
+    case 0x1F: version_send(); break;           /* the page asks which OPN-1 this is */
     case 0x6A:                                  /* a chunk begins: where it goes, 7 + 7 + 7 bits */
         upl.c_on = 1;
         upl.c_bad = 0;

@@ -338,6 +338,7 @@ const state = {
   ed: { patch: null, slot: 0 },                 // (heard on part 1)
   songs: [], found: [], drums: [], psgs: [],
   kitOn: false, shapesOn: false,                // send the songs' kit and shapes with the patches
+  fw: null,                                     // the FM-1's OPN-1: "2.0.0" or "DEV", false if not 2.x, null unknown
 };
 const $ = id => document.getElementById(id);
 function send(bytes) { if (state.out) state.out.send(bytes); }
@@ -422,6 +423,7 @@ async function startMidi() {
       for (const i of ins) i.onmidimessage = i === inp ? e => song.reply(e.data) : null;
       if (!fm1) setConn(false, "FM-1 not found");
       else setConn(true, /fm-?1|felucca/i.test(fm1.name) ? "FM-1 connected" : "Sending to " + fm1.name);
+      if (fm1 !== was) state.fw = null;
       if (fm1 && fm1 !== was) setTimeout(() => readAll().catch(() => {}), 300);
     };
     $("out").onchange = () => { state.out = access.outputs.get($("out").value) || null; fill(); };
@@ -449,6 +451,9 @@ const song = {
     if (d[1] === 0x4D) this.resolve("saved", d[2]);
     if (d[1] === 0x56 || d[1] === 0x57) this.resolve("patch", d[1] === 0x56);
     if (d[1] === 0x46 || d[1] === 0x47) this.resolve("psgi", d[1] === 0x46);
+    if (d[1] === 0x1C) this.ver = [d[2]];       // the firmware's version: 1C major, 1D minor, 1E patch
+    if (d[1] === 0x1D && this.ver?.length === 1) this.ver.push(d[2]);
+    if (d[1] === 0x1E && this.ver?.length === 2) this.resolve("version", [...this.ver, d[2]]);
     if (d[1] === 0x74) {                        // playing or not: a song that stops ends the page's stream
       const was = this.playing;
       this.playing = d[2] === 1;
@@ -1058,6 +1063,7 @@ let busy = false;
 async function job(what, fn) {                  // one transfer at a time, its outcome in the status line
   if (!state.out) { setStatus("The FM-1 is not connected.", "err"); return; }
   if (busy) { setStatus("Wait for the last transfer to finish.", "err"); return; }
+  if (!needV2()) return;
   busy = true;
   try { await fn(); } catch (e) { setStatus(what + " stopped: " + e.message, "err"); }
   busy = false;
@@ -1070,22 +1076,47 @@ async function readLib() {
   const n = state.lib.filter(Boolean).length;
   setStatus(`The FM-1 holds ${n} patch${n === 1 ? "" : "es"}.`, "ok");
 }
+async function readVersion() {                  // which OPN-1 the FM-1 runs; state.fw false if not 2.x
+  for (let t = 0; t < 3; t++) {
+    const r = song.wait("version", () => true, 400);
+    cc16(0x1F, 0);
+    const v = await r.catch(() => null);
+    if (v) {
+      state.fw = v[0] === 127 ? "DEV" : v[0] === 2 ? v.join(".") : false;
+      if (state.fw) setConn(true, "FM-1 · OPN-1 " + state.fw);
+      return v;
+    }
+  }
+  state.fw = false;                             // (OPN-1 1.x and the stock firmware do not answer)
+  return null;
+}
 async function readAll() {
-  let silent = false;
+  busy = true;                                  // (no transfer starts before the version is known)
+  const v = await readVersion().catch(() => null);
+  busy = false;
+  if (state.fw === false) { oldFirmware(v); return; }
   await job("Reading", async () => {          // (the library even if the parts did not come)
     let err = null;
     await readParts().catch(e => { err = e; });
-    await readLib().catch(e => { silent = !!err; throw e; });
+    await readLib();
     if (err) throw err;
   });
-  if (silent) oldFirmware();                    // (OPN-1 1.x answers neither)
 }
-function oldFirmware() {
-  $("donetitle").textContent = "OPN-1 1.x?";
+function needV2() {                             // false, with the reason shown, if the FM-1 does not run OPN-1 2.x
+  if (state.fw !== false) return true;
+  setStatus("This page needs OPN-1 2.0 on the FM-1.", "err");
+  oldFirmware();
+  return false;
+}
+function oldFirmware(v) {
+  setConn(false, v ? `FM-1 · OPN-1 ${v[0]}.${v[1]}` : "FM-1 · not OPN-1 2");
+  $("donetitle").textContent = "Needs OPN-1 2.0";
   $("donetext").className = "";
-  $("donetext").replaceChildren("The FM-1 did not answer this page, which needs OPN-1 2.0. If it runs OPN-1 1.x, use ",
-    el("a", { href: "v1/" }, "the 1.0 page"), ", or install 2.0 from the ",
+  $("donetext").replaceChildren(v ? `This FM-1 runs OPN-1 ${v.join(".")}; this page needs 2.x. ` :
+    "This FM-1 did not say which firmware it runs, so it is not OPN-1 2.0 (OPN-1 1.x and the stock firmware do not). ",
+    "On OPN-1 1.x, use ", el("a", { href: "v1/" }, "the 1.0 page"), ". To use this page, install OPN-1 2.0 from the ",
     el("a", { href: "https://github.com/putchdev/opn-1/releases/latest", target: "_blank", rel: "noopener" }, "releases"), ".");
+  $("donecancel").classList.add("hide");
   $("doneprog").classList.add("hide");
   $("doneok").disabled = false;
   if (!$("done").open) $("done").showModal();
@@ -1376,6 +1407,7 @@ function edNote() {                             // the Editor's word when part 1
 function partChan(p) { const c = state.mode === 1 ? p : state.parts[p].chan; return c === CH_ALL ? 0 : c; }
 async function audition(p) {                    // onto part 1, then a note on its channel
   if (!state.out) { setStatus("The FM-1 is not connected.", "err"); return; }
+  if (!needV2()) return;
   const ch = partChan(0);
   send(patchMsg(0x50, 0, $("normalise").checked ? normalised(p) : p));
   if (ch > 15) { setStatus("Part 1 has no MIDI channel: turn it on in Setup to hear it.", "err"); return; }
@@ -1675,6 +1707,7 @@ async function playSong(i) {
   const sp = state.songs[i].sp;
   if (!sp || !state.out) { setStatus("The FM-1 is not connected.", "err"); return; }
   if (busy) { setStatus("Wait for the last transfer to finish.", "err"); return; }
+  if (!needV2()) return;
   if (midiPlaying >= 0) stopMidi();
   const run = ++song.run;
   playing = i; renderSongs();
@@ -1922,6 +1955,7 @@ let midiRun = 0, midiPlaying = -1;
 async function playMidi(i) {                    // live, in GenMDM mode; the parts as they were after
   const s = state.songs[i];
   if (!state.out) { setStatus("The FM-1 is not connected.", "err"); return; }
+  if (!needV2()) return;
   if (playing >= 0) stopSong();
   const run = ++midiRun, mode = state.mode, out = state.out;
   midiPlaying = i; renderSongs();

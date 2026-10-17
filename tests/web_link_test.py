@@ -57,6 +57,7 @@ function devMsg(st, d1, d2) {
   case 0x50: case 0x5B: dev.slot = d1 === 0x5B ? d2 : -1; break;
   case 0x55: dev.patches = (dev.patches || 0) + 1; reply(0xBF, dev.slot >= 0 ? 0x3E : 0x56, dev.slot >= 0 ? dev.slot : 0); break;   // (frames: their content is the firmware's and web_app_test's)
   case 0x5C: reply(0xBF, 0x36, d2); break;      // (the library: empty)
+  case 0x1F: reply(0xBF, 0x1C, 2); reply(0xBF, 0x1D, 0); reply(0xBF, 0x1E, 0); break;   // OPN-1 2.0.0
   case 0x27: for (const [c, v] of [[0x20, d2], [0x21, d2], [0x22, 127], [0x23, 0], [0x24, 10], [0x25, 0], [0x26, 0], [0x2F, d2]]) reply(0xBF, c, v); break;
   case 0x45: dev.psgs = (dev.psgs || 0) + 1; reply(0xBF, 0x46, 0); break;
   case 0x4E: reply(0xBF, 0x6E, 0x4E); dev.saved = (dev.saved || 0) + 1; reply(0xBF, 0x4D, 0); break;

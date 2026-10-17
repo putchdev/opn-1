@@ -113,6 +113,7 @@ function devMsg(st, d1, d2) {
   case 0x24: dev.parts[dev.cfg].time = d2; reply(0xBF, 0x2F, dev.cfg); break;
   case 0x25: dev.parts[dev.cfg].slot = d2; reply(0xBF, 0x2F, dev.cfg); break;
   case 0x26: dev.mode = d2; reply(0xBF, 0x2F, 0x7F); break;
+  case 0x1F: if (!dev.old) { reply(0xBF, 0x1C, 2); reply(0xBF, 0x1D, 0); reply(0xBF, 0x1E, 0); } break;   // (OPN-1 1.x: no answer)
   case 0x27: {
     const p = dev.parts[d2];
     reply(0xBF, 0x20, d2); reply(0xBF, 0x21, p.chan); reply(0xBF, 0x22, p.level); reply(0xBF, 0x23, p.trig);
@@ -142,6 +143,7 @@ DRIVER = r"""<script>
   const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   await sleep(600); await idle();                        // (connecting reads the parts and the library)
   check("connecting reads the empty library", state.lib.every(x => x === null));
+  check("connecting asks the firmware's version", state.fw === "2.0.0" && $("pilltext").textContent === "FM-1 · OPN-1 2.0.0");
   await loadFiles([new File([%OPM%], "Sonic_the_Hedgehog_2_-_24_-_Extra_Life.opm")]);
   check("two good patches imported (empty and broken ones skipped)", state.imports.length === 2);
   check("named from the file", state.imports[0].name === "STH2 24 1");
@@ -211,6 +213,11 @@ DRIVER = r"""<script>
   check("clearing a bank asks first", $("done").open && $("doneok").textContent === "Clear it");
   $("doneok").click(); await idle();
   check("bank 2 cleared", dev.lib.every(x => x === null) && state.lib.slice(32, 64).every(x => x === null));
+  $("done").close();
+  dev.old = true; state.fw = null; await readAll();
+  check("an FM-1 that does not answer the version is not used", state.fw === false && $("done").open && $("donetitle").textContent === "Needs OPN-1 2.0");
+  $("done").close(); const before = dev.lib.slice(); $("readlib").click(); await sleep(100);
+  check("and nothing is sent to it", $("status").textContent === "This page needs OPN-1 2.0 on the FM-1." && eq(dev.lib, before));
   document.getElementById("result").textContent = "RESULT\n" + checks.join("\n") + `\n(dropped ${dev.dropped} messages, status "${$("status").textContent}")`;
 })();
 </script><pre id="result"></pre>"""

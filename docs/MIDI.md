@@ -171,6 +171,7 @@ Every message in this table may arrive more than once, and the device tolerates 
 | 78 to 7F, chunks | As for the bank | |
 | 63 0 | Kit complete: check it | 73 status |
 | 4E 0 | Keep the current sound set in flash | 6E 4E at once, then 4D status |
+| 1F 0 | Which OPN-1 this is (2.0 on; 1.x does not answer) | 1C major, 1D minor, 1E patch (1C 127: a DEV build) |
 
 CRC-32 is the standard zlib/IEEE CRC over the image's true length (before any pad byte). The CRC and length CCs
 belong to the upload begun by the last 70 or 61, so send them after it.

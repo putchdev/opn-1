@@ -1743,12 +1743,14 @@ function* vgmMidi(sp, hitAt, loops) {           // [t (samples), status, d1, d2]
     psgSync(latch);
     if (latch >= 2) { psgSync(2); psgSync(3); }
   };
-  let held = -1, heldFor = 0;
+  let held = -1, heldFor = 0, ends = -1;          // (where the sound playing ends)
   const hit = () => { held = pos; heldFor = 0; };   // a DAC sound may start at pos
   const play = () => {                          // it's a sound once it runs 16 bytes: drivers (Sonic 1) seek to the
     const n = hitAt(held);                      // next one and write a byte of it long before its beat
+    const from = held;
     held = -1;
     if (n < 0) return;
+    ends = from + (hitAt.len?.[n] ?? Infinity);
     ev(0x99, n, 127);
     later.push([t + 4410, 0x89, n, 0]);
   };
@@ -1780,6 +1782,8 @@ function* vgmMidi(sp, hitAt, loops) {           // [t (samples), status, d1, d2]
       if (!(runFrom >= 0 && to >= pos && to <= pos + 4)) { runFrom = -1; pos = to; }
     } else if (op >= 0x80 && op <= 0x8F) {
       if (runFrom < 0 || t - lastDac > 441) { runFrom = pos; hit(); }
+      // past its end, a driver (Sonic 1) may play straight on into the next sound
+      else if (held < 0 && pos >= ends - 16 && hitAt.starts?.has(pos)) hit();
       lastDac = t;
       if (held >= 0 && ++heldFor >= 16) play();
       pos++;
@@ -1797,9 +1801,10 @@ function* vgmMidi(sp, hitAt, loops) {           // [t (samples), status, d1, d2]
 }
 function kitHits(file, live) {                  // the song's DAC sounds' offsets -> the kit's notes, as sent
   if (live && !state.kitSent) return () => -1;  // (without a kit, channel 10 is the noise)
-  const n = kitImage(state.drums).n, at = [];
-  state.drums.slice(0, n).forEach(d => (d.at?.[file] || []).forEach(o => at.push([o, d.note])));
-  return pos => { for (const [o, note] of at) if (Math.abs(pos - o) <= 16) return note; return -1; };
+  const n = kitImage(state.drums).n, at = [], len = {};
+  state.drums.slice(0, n).forEach(d => { len[d.note] = d.bytes.length; (d.at?.[file] || []).forEach(o => at.push([o, d.note])); });
+  const f = pos => { for (const [o, note] of at) if (Math.abs(pos - o) <= 16) return note; return -1; };
+  return Object.assign(f, { len, starts: new Set(at.map(([o]) => o)) });
 }
 function smf(events) {                          // a format 0 MIDI file; a tick is one sample (44100 a second)
   const b = [], vlq = n => { const s = [n & 127]; while ((n >>= 7)) s.unshift(n & 127 | 128); b.push(...s); };

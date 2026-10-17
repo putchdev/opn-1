@@ -172,11 +172,20 @@ DRIVER = r"""<script>
   $("mode").value = "1"; $("mode").onchange(); await idle();
   check("MIDI mode set", dev.mode === 1);
   $("mode").value = "0"; $("mode").onchange(); await idle();
-  const ch = $("partstable").rows[2].cells[2].firstChild; ch.value = "0"; ch.onchange({ target: ch }); await idle();
-  check("part 2 onto MIDI channel 1", dev.parts[1].chan === 0);
-  check("the editor says Multi is in use", !$("edmulti").classList.contains("hide"));
-  $("single").click(); await idle();
-  check("One synth puts part 1 on every channel, the rest off", dev.parts[0].chan === 17 && dev.parts.slice(1).every(x => x.chan === 16));
+  const card = k => [...document.querySelectorAll("#setups button")].find(x => x.querySelector("b").textContent === k);
+  const button = t => [...document.querySelectorAll("#setupbody button")].find(x => x.textContent === t);
+  card("Layer").click(); await idle();
+  check("Layer: part 2 joins part 1 on All, with its patch", dev.parts[0].chan === 17 && dev.parts[1].chan === 17 &&
+    dev.parts.slice(2).every(x => x.chan === 16) && dev.parts[1].slot === state.parts[0].slot);   // (the page's part 1: the fake did not follow PRESETS)
+  check("the editor says it is a layer", !$("edmulti").classList.contains("hide") && $("edmulti").textContent.startsWith("Layer"));
+  const when = document.querySelectorAll('#setupbody select[aria-label="When"]')[1]; when.value = "2"; when.onchange({ target: when }); await idle();
+  check("a layer on release", dev.parts[1].trig === 2);
+  card("Split").click(); await idle();
+  check("Split: parts 1 and 2 on channels 1 and 2, at the key", dev.parts[0].chan === 0 && dev.parts[1].chan === 1 && dev.parts[1].trig === 0);
+  button("Add a channel").click(); await idle();
+  check("a channel added on the next free one", dev.parts[2].chan === 2);
+  card("Single").click(); await idle();
+  check("Single puts part 1 on All, the rest off", dev.parts[0].chan === 17 && dev.parts.slice(1).every(x => x.chan === 16));
   check("and the editor's note goes", $("edmulti").classList.contains("hide"));
   {                                                     // a made-up song as MIDI: a patch, an A4 on FM 1, a PSG A4
     const cmds = [0x52, 0xB0, 0x32, 0x52, 0x40, 0x10, 0x52, 0x4C, 0x05, 0x52, 0xA4, 0x24, 0x52, 0xA0, 0x3B, 0x52, 0x28, 0xF0,

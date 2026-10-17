@@ -18,10 +18,14 @@ The FM sounds are six **parts**. Each part has a sound (a library slot, as edite
 trigger. The six YM2612 FM channels are voices the parts share (five with a drum kit loaded). The MIDI mode, on the
 FM-1's GLOBAL page (MIDI knob) or by CC 26 below, says how they play:
 
-- **MULTI** (the default): each part plays as many notes as there are free voices. A new note takes a free voice,
-  else the oldest note's (this part's first). Parts on the same MIDI channel play together, as a layer. By default
-  part 1 is on All (channels 1 to 6 and 12 to 15, the ones the PSG, drums and transfers leave) and parts 2 to 6 are off, so the FM-1 is one synth
-  playing the selected patch. Its screen and the page call this setup **Multi** once it is changed.
+- **Normal** (the default): each part plays as many notes as there are free voices. A new note takes a free
+  voice, else the oldest note's (this part's first). Parts on the same MIDI channel play together. The FM-1 and the
+  page name the parts' setup by what it does:
+  - **Single** (the default): part 1 on All (channels 1 to 6 and 12 to 15, the ones the PSG, drums and transfers
+    leave), parts 2 to 6 off. The FM-1 is one synth playing the selected patch.
+  - **Layer:** the parts that are on are all on All, stacked, each with its trigger.
+  - **Split:** the parts that are on each have a MIDI channel, triggered at the key.
+  - **Mixed:** anything else (set by CCs or the FM-1's SETUP page).
 - **GENMDM:** part n is FM channel n, one note at a time, on channel n: GenMDM v100's layout.
 - **PANEL:** any channel (but 10) plays the part shown on the FM-1, as its keys do.
 
@@ -35,7 +39,7 @@ So one part can be a sound's attack, another its body, another its tail. In GENM
 
 | MIDI channel | Plays |
 |---|---|
-| A part's channel | That part (MULTI; a part on All takes 1 to 6 and 12 to 15); 1 to 6, FM parts 1 to 6 (GENMDM) |
+| A part's channel | That part (Normal; a part on All takes 1 to 6 and 12 to 15); 1 to 6, FM parts 1 to 6 (GENMDM) |
 | 7 to 9 | PSG tone channels 1 to 3 |
 | 10 | Drum kit if one is loaded (note 36 = sound 0, 37 = sound 1, ...), otherwise PSG noise |
 | 11 | PSG noise, always |
@@ -326,7 +330,7 @@ n x { u32 length, u32 rate_hz }   (rate 1000 to 50000)
 sample bytes, one sound after another, 8 bit unsigned (as the YM2612 DAC takes them)
 ```
 
-### 3.4 Multi (the parts' setup)
+### 3.4 The parts' setup
 
 All on channel 16. Changes are in RAM until CC 4E, which also keeps the parts. SAVE on the FM-1 keeps them too.
 
@@ -338,7 +342,7 @@ All on channel 16. Changes are in RAM until CC 4E, which also keeps the parts. S
 | 23 t | Its trigger: 0 key, 1 delay, 2 release | 2F p |
 | 24 t | Its time, in 10 ms steps (the delay, or how long a release part holds) | 2F p |
 | 25 s | Its sound: library slot s | 2F p |
-| 26 m | The MIDI mode: 0 multi, 1 GenMDM, 2 panel | 2F 7F |
+| 26 m | The MIDI mode: 0 normal, 1 GenMDM, 2 panel | 2F 7F |
 | 27 p | Read part p | 20 p, then 21 to 26 with its values, then 2F p |
 
 The FM-1 sends **CC 28+p s** (28 to 2D) whenever part p's slot changes, for example by PRESETS or a program change.

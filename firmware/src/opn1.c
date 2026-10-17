@@ -419,13 +419,24 @@ static uint8_t midi_mode, dbl;                  /* dbl: each note on two voices,
 
 static uint32_t n_voices(void) { return kit_n ? 5u : 6u; }   /* (with a kit, FM channel 6 is the drums') */
 
-static int multi_used(void)                     /* 0: one synth, part 1 on All and the rest off */
+/* the parts' setup by what it does, as the page names it: SINGLE part 1 alone on All; LAYER parts stacked on All;
+ * SPLIT parts each on a MIDI channel, at the key; MIXED anything else */
+enum { SET_SINGLE, SET_LAYER, SET_SPLIT, SET_MIXED };
+static const char *const SETUP_NAME[4] = {"SINGLE", "LAYER", "SPLIT", "MIXED"};
+static uint32_t setup_kind(void)
 {
-    uint32_t p;
-    if (midi_mode != MODE_PARTS || pt[0].chan != CHAN_ALL) return 1;
-    for (p = 1; p < NPART; p++) if (pt[p].chan != CHAN_OFF) return 1;
-    return 0;
+    uint32_t p, all = 0, ch = 0, timed = 0;
+    for (p = 0; p < NPART; p++) {
+        if (pt[p].chan == CHAN_OFF) continue;
+        if (pt[p].chan == CHAN_ALL) all++;
+        else { ch++; if (pt[p].trig != TRIG_KEY) timed++; }
+    }
+    if (!ch && all == 1 && pt[0].chan == CHAN_ALL && pt[0].trig == TRIG_KEY) return SET_SINGLE;
+    if (!ch && all) return SET_LAYER;
+    if (!all && ch && !timed) return SET_SPLIT;
+    return SET_MIXED;
 }
+static int multi_used(void) { return midi_mode != MODE_PARTS || setup_kind() != SET_SINGLE; }   /* 0: one synth */
 
 static void voice_take(uint32_t v, uint32_t p)  /* voice v plays part p's sound */
 {
@@ -1394,12 +1405,12 @@ static void part_bend(uint32_t sel, int32_t bend)
 
 /* ---- the knobs: a page of four, chosen by the buttons; ALGORITHM is always the algorithm */
 enum { PG_SOUND, PG_TONE, PG_ENV, PG_LFO, PG_FX, PG_ARP, PG_GLO, PG_PARTS, NPAGE };
-static const char *const PAGE_NAME[NPAGE] = {"SOUND", "OPERATOR", "ENVELOPES", "LFO", "VIBRATO", "ARPEGGIO", "GLOBAL", "MULTI"};
+static const char *const PAGE_NAME[NPAGE] = {"SOUND", "OPERATOR", "ENVELOPES", "LFO", "VIBRATO", "ARPEGGIO", "GLOBAL", "SETUP"};
 static const char *const KNOB_NAME[NPAGE][4] = {
     {"BRIGHT", "ATTACK", "REL", "FEEDBK"}, {"LEVEL", "MULT", "DETUNE", "DECAY2"},
     {"ATTACK", "DECAY", "SUSTN", "REL"}, {"RATE", "FM DEP", "AM DEP", "AM OPS"},
     {"DEPTH", "SPEED", "DELAY", "DOUBLE"}, {"MODE", "BPM", "OCTS", "GATE"}, {"VELO", "BEND", "MIDI", "TUNE"},
-    {"CHAN", "LEVEL", "TRIG", "TIME"}};   /* (6 fit) */
+    {"CHAN", "LEVEL", "WHEN", "TIME"}};   /* (6 fit) */
 static const int16_t RANGE[NPAGE][4][3] = {     /* min, max, a detent's step */
     {{0, 127, 2}, {0, 31, 1}, {0, 15, 1}, {0, 7, 1}}, {{0, 127, 1}, {0, 15, 1}, {-3, 3, 1}, {0, 31, 1}},
     {{0, 31, 1}, {0, 31, 1}, {0, 15, 1}, {0, 15, 1}}, {{0, 8, 1}, {0, 7, 1}, {0, 3, 1}, {0, 15, 1}},
@@ -1521,9 +1532,9 @@ static void knob_text(uint32_t pg, uint32_t k, int32_t v, char *s)
         return;
     } else if (pg == PG_FX && k == 2u) v *= 10; /* (10 ms steps: shown in ms) */
     else if (pg == PG_ARP && k == 0u) t = MODE[v & 3];
-    else if (pg == PG_GLO && k == 2u) t = v == MODE_PARTS ? "MULTI" : v == MODE_GENMDM ? "GENMDM" : "PANEL";
+    else if (pg == PG_GLO && k == 2u) t = v == MODE_PARTS ? SETUP_NAME[setup_kind()] : v == MODE_GENMDM ? "GENMDM" : "PANEL";
     else if (pg == PG_PARTS && k == 0u) { if (v == CHAN_OFF) t = "OFF"; else if (v == CHAN_ALL) t = "ALL"; else v++; }
-    else if (pg == PG_PARTS && k == 2u) t = v == TRIG_KEY ? "KEY" : v == TRIG_DELAY ? "DELAY" : "REL";
+    else if (pg == PG_PARTS && k == 2u) t = v == TRIG_KEY ? "NOTE" : v == TRIG_DELAY ? "DELAY" : "REL";
     else if (pg == PG_PARTS && k == 3u) v *= 10;   /* (10 ms steps: shown in ms) */
     if (t) {
         while ((*s++ = *t++)) {}
@@ -1541,7 +1552,7 @@ static int edited(uint32_t c)                   /* part c's sound differs from i
         if (a[i] != b[i]) return 1;
     return 0;
 }
-static uint32_t sel_step(uint32_t sel, int32_t dir)   /* the panel's next entry; parts 2-6 only with MULTI in use or shown */
+static uint32_t sel_step(uint32_t sel, int32_t dir)   /* the panel's next entry; parts 2-6 only with a setup in use or shown */
 {
     do sel = (uint32_t)((int32_t)sel + dir + NPANEL) % NPANEL;
     while (sel > 0u && sel < NPART && !multi_used() && page != PG_PARTS);
@@ -1625,8 +1636,16 @@ static void head_text(char *s)                  /* the header's left: a message,
         return;
     }
     if (song_text(s)) return;
-    if (page == PG_PARTS) put_str(&p, "MULTI: ");
-    else if (ui_sel < NPART && !multi_used()) { put_str(&p, "FM"); return; }
+    if (ui_sel < NPART && midi_mode == MODE_PARTS) {   /* an FM part, named as the setup has it */
+        uint32_t k = setup_kind(), c = pt[ui_sel].chan;
+        if (k == SET_SINGLE) { put_str(&p, page == PG_PARTS ? "SINGLE" : "FM"); return; }
+        if (page == PG_PARTS || k == SET_MIXED) { put_str(&p, SETUP_NAME[k]); put_str(&p, ": "); }
+        if (k == SET_SPLIT && c < CHAN_OFF) { put_str(&p, "CH "); put_num(p, (int32_t)c + 1, 0); return; }
+        put_str(&p, N[ui_sel]);
+        if (c == CHAN_OFF) put_str(&p, " OFF");
+        else if (k == SET_MIXED && c != CHAN_ALL) { put_str(&p, " CH "); put_num(p, (int32_t)c + 1, 0); }
+        return;
+    }
     put_str(&p, N[ui_sel]);
     if (ui_sel < NPART) {
         put_str(&p, " / ");
@@ -1788,32 +1807,35 @@ static void draw_op(void)                       /* OPERATOR: one, large */
     draw_env(&pt[ui_sel].p.op[op_sel], 9, 50, 222, 90, OP_C[op_sel], OP_DIM[op_sel]);
 }
 
-static void draw_parts(void)                    /* PARTS: the six, the panel's highlighted */
+static void draw_parts(void)                    /* SETUP: the six, the panel's highlighted, the ones off dim */
 {
-    uint32_t k;
-    static const char *const TRIG[NTRIG] = {"KEY", "DLY", "REL"};
+    uint32_t k, split = midi_mode == MODE_PARTS && setup_kind() == SET_SPLIT;
+    static const char *const TRIG[NTRIG] = {"NOTE", "DLY", "REL"};
     cv_text(6, 26, &FONT_S, "#", C_LBL);
-    cv_text(22, 26, &FONT_S, "SOUND", C_LBL);
+    cv_text(22, 26, &FONT_S, "PATCH", C_LBL);
     cv_text(144, 26, &FONT_S, "CH", C_LBL);
     cv_text(170, 26, &FONT_S, "LVL", C_LBL);
-    cv_text(206, 26, &FONT_S, "TRG", C_LBL);
+    if (!split) cv_text(202, 26, &FONT_S, "WHEN", C_LBL);   /* (a split plays at the key) */
     for (k = 0; k < NPART; k++) {
         int32_t y = 44 + 17 * (int32_t)k;
         char s[16], *q = s;
         const part_t *t = &pt[k];
+        int on = midi_mode == MODE_GENMDM || t->chan != CHAN_OFF;
         if (k == ui_sel) cv_rect(2, y - 1, 236, 17, RGB(42, 10, 13));
         s[0] = (char)('1' + k); s[1] = 0;
-        cv_text(6, y, &FONT_S, s, C_PINK);
-        cv_text(22, y, &FONT_S, t->p.name[0] ? t->p.name : "EMPTY", t->p.name[0] ? C_WHITE : C_LBL);
+        cv_text(6, y, &FONT_S, s, on ? C_PINK : C_OFF);
+        cv_text(22, y, &FONT_S, t->p.name[0] ? t->p.name : "EMPTY", on && t->p.name[0] ? C_WHITE : C_BOX);
         if (midi_mode == MODE_GENMDM) put_num(s, (int32_t)k + 1, 0);
-        else if (t->chan == CHAN_OFF) put_str(&q, "-");
+        else if (!on) put_str(&q, "OFF");
         else if (t->chan == CHAN_ALL) put_str(&q, "ALL");
         else put_num(s, t->chan + 1, 0);
-        cv_text(144, y, &FONT_S, s, C_WHITE);
+        cv_text(144, y, &FONT_S, s, on ? C_WHITE : C_OFF);
+        if (!on) continue;
         cv_rect(170, y + 6, 30, 5, C_BOX);
         cv_rect(170, y + 6, (int32_t)t->level * 30 / 127, 5, k == ui_sel ? C_OP1 : C_ACC);
-        cv_text(206, y, &FONT_S, midi_mode == MODE_GENMDM ? "KEY" : TRIG[t->trig],
-                t->trig == TRIG_DELAY ? C_OP1 : t->trig == TRIG_RELEASE ? C_OP3 : C_LBL);
+        if (!split)
+            cv_text(202, y, &FONT_S, midi_mode == MODE_GENMDM ? "NOTE" : TRIG[t->trig],
+                    t->trig == TRIG_DELAY ? C_OP1 : t->trig == TRIG_RELEASE ? C_OP3 : C_LBL);
     }
 }
 
@@ -1836,7 +1858,7 @@ static void draw_foot(void)
         uint32_t pct = load_ticks * 100u / 139320u;
         q = s; put_str(&q, "CPU "); q = put_num(q, (int32_t)pct, 0); put_str(&q, "%");
     } else {
-        q = s; put_str(&q, midi_mode == MODE_PARTS ? (multi_used() ? "MULTI" : "") : midi_mode == MODE_GENMDM ? "GENMDM" : "PANEL");
+        q = s; put_str(&q, midi_mode == MODE_PARTS ? (multi_used() ? SETUP_NAME[setup_kind()] : "") : midi_mode == MODE_GENMDM ? "GENMDM" : "PANEL");
     }
     text_r(234, 220, &FONT_S, s, C_LBL);
 }
@@ -2174,7 +2196,7 @@ static void app_main(void)
         if (b & (1u << BTN_HOME)) page = PG_SOUND;
         if (b & (1u << BTN_LFO)) page = PG_LFO;
         if (b & (1u << BTN_FX)) page = PG_FX;
-        if (b & (1u << BTN_GLO)) page = page == PG_GLO ? PG_PARTS : PG_GLO;   /* again: MULTI */
+        if (b & (1u << BTN_GLO)) page = page == PG_GLO ? PG_PARTS : PG_GLO;   /* again: SETUP */
         if (b & (1u << BTN_EDIT)) { if (page == PG_TONE) op_sel = (op_sel + 1u) & 3u; page = PG_TONE; }   /* again: the next operator */
         if (b & (1u << BTN_ENV)) { if (page == PG_ENV) op_sel = (op_sel + 1u) & 3u; page = PG_ENV; }
         if (b & (1u << BTN_SEL)) {              /* the next operator on its pages, else the next part */
@@ -2192,7 +2214,7 @@ static void app_main(void)
                 if (!pt[sel].p.name[0]) { const char *u = "USER"; uint32_t i; for (i = 0; u[i]; i++) pt[sel].p.name[i] = u[i]; }
                 lib[pt[sel].slot] = pt[sel].p;
                 msg = store_save() ? "SAVE FAILED" : "SAVED";
-            } else msg = multi_used() ? "MULTI SAVED" : "SAVED";
+            } else msg = multi_used() ? "SETUP SAVED" : "SAVED";
             msg_until = fm1_ms + 1500u;
         }
         if (b & (1u << BTN_REC)) {              /* the chips' sounds now onto the FM parts */

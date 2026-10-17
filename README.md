@@ -32,9 +32,9 @@ back exactly, with a live view of every channel on the device's screen.
 - **A patch library.** 128 slots in 4 banks of 32, kept in flash. PRESETS on the FM-1 steps through them and a
   MIDI program change picks one. Fill them from `.opm` banks (the VOPM format, as in the 2612.org packs) or from a game's VGM
   songs, into whichever bank and slot you pick, and export a bank back to `.opm`.
-- **One synth by default, six parts when you want them.** Out of the box the FM-1 plays the selected patch, up
-  to six notes at once. **Multi** turns on up to six parts, each with its own patch, MIDI channel, level and trigger: parts
-  on one channel layer, a Delay part comes in after the note starts, and a Release part sounds when it ends.
+- **Single, Layer or Split.** Out of the box the FM-1 plays the selected patch, up to six notes at once.
+  **Layer** stacks up to six patches on the keys, each at its own volume and playing with the note, after a delay
+  or on release (an attack, a body and a tail). **Split** gives each MIDI channel its own patch, for a sequencer.
 - **Edit on the device or the page.** Knob pages for the sound, each operator's tone, all four envelopes drawn,
   the LFO, vibrato and a doubled detune, and an arpeggiator. The web app's editor shows every operator and envelope
   at once and plays changes as you make them. SAVE keeps the patch in its slot.
@@ -57,8 +57,8 @@ back exactly, with a live view of every channel on the device's screen.
 | **HOME:** the patch, its algorithm, the main knobs | **EDIT:** one operator, large. Again for the next | **ENV:** all four envelopes |
 | <img src="docs/screens/fm1-lfo.png" width="240" alt="LFO page"> | <img src="docs/screens/fm1-vibrato.png" width="240" alt="Vibrato page"> | <img src="docs/screens/fm1-arpeggio.png" width="240" alt="Arpeggiator page"> |
 | **LFO:** rate, depths and which operators it moves | **FX:** vibrato and a doubled detune | **ARP:** the arpeggiator |
-| <img src="docs/screens/fm1-global.png" width="240" alt="Global page"> | <img src="docs/screens/fm1-multi.png" width="240" alt="Multi page"> | <img src="docs/screens/fm1-seq.png" width="240" alt="SEQ monitor"> |
-| **GLO:** velocity, bend range, MIDI mode, tuning | **GLO again:** Multi, the six parts | **SEQ:** every channel live |
+| <img src="docs/screens/fm1-global.png" width="240" alt="Global page"> | <img src="docs/screens/fm1-layer.png" width="240" alt="Setup page with a layer"> | <img src="docs/screens/fm1-seq.png" width="240" alt="SEQ monitor"> |
+| **GLO:** velocity, bend range, MIDI mode, tuning | **GLO again:** SETUP, a layer's or split's parts | **SEQ:** every channel live |
 
 ## The web app
 
@@ -68,8 +68,8 @@ back exactly, with a live view of every channel on the device's screen.
 <p align="center"><img src="docs/screens/web-editor.png" width="720" alt="The Editor: a patch's algorithm and its four operators with their envelopes"></p>
 <p align="center"><b>Editor:</b> pick a patch, change it and hear it on the FM-1 as you go, then save it to its slot.</p>
 
-<p align="center"><img src="docs/screens/web-multi.png" width="720" alt="The Multi tab: six parts with their patches, MIDI channels, levels and triggers"></p>
-<p align="center"><b>Multi:</b> the six parts, for layers and multitimbral setups. One synth puts it back.</p>
+<p align="center"><img src="docs/screens/web-layer.png" width="720" alt="The Setup tab: three patches layered, one after a delay and one on release"></p>
+<p align="center"><b>Setup:</b> Single, Layer or Split. A layer stacks patches on the keys; a split gives each MIDI channel its own.</p>
 
 ## Getting started
 
@@ -154,7 +154,7 @@ still contain mistakes; reports and fixes are welcome.
 
 | | |
 | --- | --- |
-| [docs/MIDI.md](docs/MIDI.md) | The full MIDI protocol: playing, Multi, the library, streaming songs |
+| [docs/MIDI.md](docs/MIDI.md) | The full MIDI protocol: playing, setups, the library, songs as MIDI, streaming |
 | [docs/DEVELOPING.md](docs/DEVELOPING.md) | Building, the host simulator, the accuracy tests, the code's layout |
 | [docs/RULES.md](docs/RULES.md) | The FM-1 chip's rules and what the build checks for |
 | [docs/API.md](docs/API.md) | What the platform layer gives the app |

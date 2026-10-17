@@ -93,6 +93,12 @@ input[type=range] { accent-color: var(--acc); width: 100%; }
 .slot.sel { border-color: var(--acc); background: linear-gradient(180deg, #3a0e12, #1a0608); } .slot.sel .n { color: #ff8a8e; }
 .algs { display: flex; gap: 6px; flex-wrap: wrap; }
 .algs button { width: 60px; height: 52px; border: 1px solid var(--line2); background: #000; color: var(--dim); cursor: pointer; display: grid; place-items: center; padding: 2px; font: 12px var(--mono); }
+.setups { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 4px 0 18px; }
+.setups button { text-align: left; border: 1px solid var(--line2); background: #000; color: var(--fg); padding: 12px 14px; cursor: pointer; font: inherit; }
+.setups button b { display: block; font: italic 800 18px "Exo 2", sans-serif; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+.setups button span { color: var(--dim); font-size: 13px; line-height: 1.4; }
+.setups button.on { border-color: var(--acc); background: linear-gradient(180deg, #3a0e12, #1a0608); }
+@media (max-width: 700px) { .setups { grid-template-columns: 1fr; } }
 .algs button.on { border-color: var(--acc); background: linear-gradient(180deg, #3a0e12, #1a0608); color: #ff8a8e; }
 .ops { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
 .op { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
@@ -136,7 +142,7 @@ table.parts select { min-height: 38px; width: 100%; }
   <nav id="nav">
     <button data-tab="library" class="on">Library</button>
     <button data-tab="editor">Editor</button>
-    <button data-tab="parts">Multi</button>
+    <button data-tab="parts">Setup</button>
     <button data-tab="drums">Drums</button>
     <button data-tab="songs">Songs</button>
     <button data-tab="help">Help</button>
@@ -201,7 +207,7 @@ table.parts select { min-height: 38px; width: 100%; }
       <div class="row" style="align-items:center;gap:24px">
         <div style="display:flex;flex-direction:column;gap:4px;min-width:220px">
           <span class="cap" id="edwhere" style="color:var(--pink)"></span>
-          <span class="sub hide" id="edmulti">Multi is in use: the patch you pick here becomes part 1's.</span>
+          <span class="sub hide" id="edmulti"></span>
           <input type="text" id="edname" maxlength="11" class="chrome" style="font-size:28px;min-height:48px;caret-color:#fff;background:none;border:0;border-bottom:1px solid var(--line2);padding:0;width:260px" aria-label="Patch name">
         </div>
         <label class="field">PATCH <select id="edslot" style="max-width:220px"></select></label>
@@ -227,16 +233,14 @@ table.parts select { min-height: 38px; width: 100%; }
   <section class="tab hide" id="tab-parts">
     <div class="panel" style="flex: 1 1 100%">
       <div class="phead">
-        <h2 class="chrome">Multi</h2>
+        <h2 class="chrome">Setup</h2>
         <span class="row" style="gap:12px;align-items:flex-end">
-          <button class="btn" id="single">One synth</button>
-          <label class="field">MIDI MODE <select id="mode"><option value="0">Multi</option><option value="1">GenMDM</option><option value="2">Panel</option></select></label>
           <button class="btn" id="readparts">Read FM-1</button>
           <button class="btn go" id="keepparts">Keep</button>
         </span>
       </div>
-      <p class="sub">You can ignore this tab: by default the FM-1 is one synth, with part 1 playing the selected patch on MIDI channels 1 to 6 and 12 to 15 (All: 7 to 11 stay the PSG and drums). Turn on more parts to play several patches at once. Each part plays one patch from the library, and all six share the six FM voices. Parts on different channels let a sequencer play different patches. Parts on the same channel play together, so one can be a sound's attack, another its body, and a Release part its tail. One synth puts it back.</p>
-      <div class="tablewrap"><table class="parts" id="partstable"></table></div>
+      <div class="setups" id="setups"></div>
+      <div id="setupbody"></div>
     </div>
   </section>
 
@@ -277,21 +281,24 @@ table.parts select { min-height: 38px; width: 100%; }
         <li>Plug the FM-1 in with USB and open this page in Chrome or Edge. Allow MIDI when the browser asks.</li>
         <li>In the Library, drop .opm patch files or VGM songs, tick the patches you want, pick a bank and slot, and press Send to FM-1.</li>
         <li>Turn PRESETS on the FM-1 to step through them, and play. The Editor changes the selected patch.</li>
-        <li>To play several patches at once (layers, or different MIDI channels), see Multi. Until you use it, the FM-1 is one synth on MIDI channels 1 to 6 and 12 to 15.</li>
+        <li>To play several patches at once, see Setup: Layer stacks them on the keys, Split gives each MIDI channel its own. Until then the FM-1 plays one patch, on MIDI channels 1 to 6 and 12 to 15.</li>
       </ol>
       <p class="sub">Installing OPN-1 is done at your own risk. It comes with no warranty, and its authors accept no responsibility for damaged or unusable devices.</p>
       <h3>MIDI port</h3>
       <label class="field" style="max-width:360px">MIDI OUTPUT <select id="out"><option>none</option></select></label>
+      <h3>MIDI layout</h3>
+      <label class="field" style="max-width:360px">LAYOUT <select id="mode"><option value="0">Normal (as Setup says)</option><option value="1">GenMDM</option><option value="2">Panel</option></select></label>
+      <p class="sub">Normal plays as the Setup tab says. GenMDM: MIDI channels 1 to 6 are FM channels 1 to 6, one note each, as GenMDM (Play MIDI in Songs uses it while it plays). Panel: every MIDI channel plays whatever is selected on the FM-1.</p>
       <h3>On the FM-1</h3>
       <table>
         <tr><th>Control</th><th>What it does</th></tr>
-        <tr><td>SELECT</td><td>Picks what the keys and knobs play: FM, PSG 1 to 3, NOISE or DRUMS (with Multi in use, PART 1 to 6 instead of FM)</td></tr>
+        <tr><td>SELECT</td><td>Picks what the keys and knobs play: FM, PSG 1 to 3, NOISE or DRUMS (with a layer or split, PART 1 to 6 instead of FM)</td></tr>
         <tr><td>PRESETS</td><td>Steps through the library's patches, skipping empty slots</td></tr>
         <tr><td>ALGORITHM</td><td>How the four operators connect</td></tr>
         <tr><td>HOME, LFO, FX, ARP</td><td>What the four knobs edit</td></tr>
         <tr><td>EDIT, ENV</td><td>One operator large, or all four envelopes. Again for the next operator</td></tr>
-        <tr><td>GLO</td><td>Velocity, bend, MIDI mode, tuning. Again: MULTI</td></tr>
-        <tr><td>SAVE</td><td>Keeps the edited patch in its slot, and the Multi setup</td></tr>
+        <tr><td>GLO</td><td>Velocity, bend, MIDI setup or layout, tuning. Again: SETUP, the parts of a layer or split</td></tr>
+        <tr><td>SAVE</td><td>Keeps the edited patch in its slot, and the setup</td></tr>
         <tr><td>SEQ, REC, PLAY</td><td>The channel monitor, grab what is playing, stop a song</td></tr>
       </table>
       <h3>If something goes wrong</h3>
@@ -1268,13 +1275,27 @@ $("exportbank").onclick = () => {                // VOPM text, detune on 2612.or
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 };
-function multiUsed() { return state.mode !== 0 || state.parts.some((x, p) => x.chan !== (p ? CH_OFF : CH_ALL)); }
+function setupKind() {                         // as the FM-1's setup_kind: single, layer, split or mixed
+  const ps = state.parts, on = ps.filter(x => x.chan !== CH_OFF), all = on.filter(x => x.chan === CH_ALL), ch = on.filter(x => x.chan !== CH_ALL);
+  if (!ch.length && all.length === 1 && ps[0].chan === CH_ALL && ps[0].trig === 0) return "single";
+  if (!ch.length && all.length) return "layer";
+  if (!all.length && ch.length && ch.every(x => x.trig === 0)) return "split";
+  return "mixed";
+}
+function multiUsed() { return state.mode !== 0 || setupKind() !== "single"; }
+function edNote() {                             // the Editor's word when part 1 is not the only one
+  const k = setupKind(), c = state.parts[0].chan;
+  $("edmulti").classList.toggle("hide", !multiUsed());
+  $("edmulti").textContent = state.mode === 0 && k === "layer" ? "Layer: the patch you pick here is layer 1's." :
+    state.mode === 0 && k === "split" && c < 16 ? `Split: the patch you pick here plays on MIDI channel ${c + 1}.` :
+    "The patch you pick here becomes part 1's.";
+}
 function partChan(p) { const c = state.mode === 1 ? p : state.parts[p].chan; return c === CH_ALL ? 0 : c; }
 async function audition(p) {                    // onto part 1, then a note on its channel
   if (!state.out) { setStatus("The FM-1 is not connected.", "err"); return; }
   const ch = partChan(0);
   send(patchMsg(0x50, 0, $("normalise").checked ? normalised(p) : p));
-  if (ch > 15) { setStatus("Part 1 has no MIDI channel: set one in Multi to hear it.", "err"); return; }
+  if (ch > 15) { setStatus("Part 1 has no MIDI channel: turn it on in Setup to hear it.", "err"); return; }
   setTimeout(() => { send([0x90 | ch, 60, 110]); setTimeout(() => send([0x80 | ch, 60, 0]), 600); }, 80);
   setStatus(`${p.name} (a preview: send it to a slot to keep it).`);
 }
@@ -1320,7 +1341,7 @@ function renderEditor() {
   ss.value = state.ed.slot;
   if (!e) return;
   $("edwhere").textContent = `PATCH ${slotName(state.ed.slot)}`;
-  $("edmulti").classList.toggle("hide", !multiUsed());
+  edNote();
   $("edname").value = e.name;
   $("edsave").textContent = "Save to " + slotName(state.ed.slot);
   const algs = $("algs");
@@ -1372,7 +1393,7 @@ $("edsave").onclick = () => job("Saving", async () => {
   setStatus(r === 0 ? `Saved to ${slotName(state.ed.slot)}.` : `Saved, but not kept for the next start (error ${r}).`, r === 0 ? "ok" : "err");
 });
 
-// ---- the Multi tab: the six parts
+// ---- the Setup tab: the six parts as Single, Layer or Split
 async function setPartParam(p, c, v) {
   for (let t = 0; t < 8; t++) {
     const r = song.wait("partok", x => x === p, 300);
@@ -1396,31 +1417,85 @@ async function readParts() {
   renderParts(); renderEditor();
   if (!state.ed.patch) openEditor().catch(() => {});
 }
+const SETUPS = [["single", "Single", "One patch: the one PRESETS selects. The FM-1 as a plain synth."],
+  ["layer", "Layer", "Up to six patches stacked on the keys, each at its own volume, and from the note, after a delay or on release."],
+  ["split", "Split", "Each MIDI channel plays its own patch: for a sequencer or DAW driving several sounds."]];
+const WHEN = ["With the note", "After a delay", "On release"];
 function renderParts() {
   $("mode").value = state.mode;
-  $("edmulti").classList.toggle("hide", !multiUsed());
-  const t = $("partstable"), used = state.lib.map((p, s) => ({ p, s })).filter(x => x.p);
-  t.innerHTML = "<tr><th>PART</th><th>SOUND</th><th>MIDI CHANNEL</th><th>LEVEL</th><th>TRIGGER</th><th>TIME (MS)</th></tr>";
-  state.parts.forEach((pt, p) => {
-    const set = (c, v, k) => job("Setting", async () => { await setPartParam(p, c, v); pt[k] = v; renderParts(); setStatus(`Part ${p + 1} set.`, "ok"); });
-    const snd = el("select", { onchange: e => set(0x25, +e.target.value, "slot") });
-    if (!used.some(x => x.s === pt.slot)) snd.add(new Option(`${slotName(pt.slot)} ${state.lib[pt.slot] === null ? "(empty)" : ""}`, pt.slot));
-    for (const x of used) snd.add(new Option(`${slotName(x.s)} ${x.p.name}`, x.s));
-    snd.value = pt.slot;
-    const ch = el("select", { disabled: state.mode === 1, onchange: e => set(0x21, +e.target.value, "chan") });
-    ch.add(new Option("All (1-6, 12-15)", CH_ALL));
-    for (let c = 0; c < 16; c++) ch.add(new Option(String(c + 1), c));
-    ch.add(new Option("Off (FM-1 keys only)", CH_OFF));
-    ch.value = state.mode === 1 ? p : pt.chan;
-    const trig = el("select", { disabled: state.mode === 1, onchange: e => set(0x23, +e.target.value, "trig") },
-      el("option", { value: 0 }, "Key"), el("option", { value: 1 }, "Delay"), el("option", { value: 2 }, "Release"));
-    trig.value = pt.trig;
-    const lvl = el("input", { type: "range", min: 0, max: 127, value: pt.level, "aria-label": "Level", onchange: e => set(0x22, +e.target.value, "level") });
-    const time = el("input", { type: "number", min: 0, max: 1270, step: 10, value: pt.time * 10, style: "width:110px", "aria-label": "Time",
-      onchange: e => set(0x24, Math.max(0, Math.min(127, Math.round(+e.target.value / 10))), "time") });
-    t.append(el("tr", {}, el("td", {}, el("b", { class: "mono", style: "color:var(--pink)" }, String(p + 1))), el("td", {}, snd), el("td", {}, ch),
-      el("td", { style: "min-width:120px" }, lvl), el("td", {}, trig), el("td", {}, time)));
-  });
+  edNote();
+  const kind = state.mode === 0 ? setupKind() : "", ps = state.parts, used = state.lib.map((p, s) => ({ p, s })).filter(x => x.p);
+  const cards = $("setups");
+  cards.innerHTML = "";
+  for (const [k, name, what] of SETUPS)
+    cards.append(el("button", { class: k === kind ? "on" : "", onclick: () => k !== kind && job("Setting", async () => { await useSetup(k); renderParts(); setStatus(`${name}. Keep to make it stick.`, "ok"); }) },
+      el("b", {}, name), el("span", {}, what)));
+  const body = $("setupbody");
+  body.innerHTML = "";
+  const set = (p, c, v, k) => job("Setting", async () => { await setPartParam(p, c, v); ps[p][k] = v; renderParts(); setStatus("Set.", "ok"); });
+  const patch = p => {
+    const x = el("select", { "aria-label": "Patch", onchange: e => set(p, 0x25, +e.target.value, "slot") });
+    if (!used.some(u => u.s === ps[p].slot)) x.add(new Option(`${slotName(ps[p].slot)} ${state.lib[ps[p].slot] === null ? "(empty)" : ""}`, ps[p].slot));
+    for (const u of used) x.add(new Option(`${slotName(u.s)} ${u.p.name}`, u.s));
+    x.value = ps[p].slot;
+    return x;
+  };
+  const vol = p => el("input", { type: "range", min: 0, max: 127, value: ps[p].level, "aria-label": "Volume", onchange: e => set(p, 0x22, +e.target.value, "level") });
+  const drop = p => p ? el("button", { class: "btn small", onclick: () => set(p, 0x21, CH_OFF, "chan") }, "Remove") : el("span");
+  const free = ps.findIndex(x => x.chan === CH_OFF);
+  const add = (label, chan) => el("button", { class: "btn", disabled: free < 0, onclick: () => job("Setting", async () => {
+    await setPartParam(free, 0x25, ps[0].slot); ps[free].slot = ps[0].slot;
+    await setPartParam(free, 0x23, 0); ps[free].trig = 0;
+    await setPartParam(free, 0x21, chan); ps[free].chan = chan;
+    renderParts(); setStatus("Added: pick its patch.", "ok");
+  }) }, label);
+  const table = (head, rows) => el("div", { class: "tablewrap" }, el("table", { class: "parts" }, el("tr", {}, head.map(h => el("th", {}, h))), rows));
+  if (state.mode !== 0) {
+    body.append(el("p", { class: "sub" }, `The MIDI layout is ${["", "GenMDM", "Panel"][state.mode]} (set in Help), so this setup is not in use.`),
+      el("button", { class: "btn", onclick: () => job("Setting", async () => { await setMode(0); setStatus("Normal MIDI layout.", "ok"); }) }, "Use it again"));
+  } else if (kind === "single") {
+    body.append(el("p", { class: "sub" }, "The patch PRESETS (or the Editor) selects plays on MIDI channels 1 to 6 and 12 to 15, and from the FM-1's keys. Channels 7 to 11 stay the PSG and drums."),
+      el("div", { class: "row", style: "gap:16px;align-items:center;max-width:480px" }, el("span", { class: "cap" }, "VOLUME"), vol(0)));
+  } else if (kind === "layer") {
+    const rows = ps.map((x, p) => [x, p]).filter(([x]) => x.chan === CH_ALL).map(([x, p], i) => {
+      const when = el("select", { "aria-label": "When", onchange: e => set(p, 0x23, +e.target.value, "trig") }, WHEN.map((w, k) => el("option", { value: k }, w)));
+      when.value = x.trig;
+      const time = el("input", { type: "number", min: 0, max: 1270, step: 10, value: x.time * 10, style: "width:100px", "aria-label": "Time in ms",
+        onchange: e => set(p, 0x24, Math.max(0, Math.min(127, Math.round(+e.target.value / 10))), "time") });
+      return el("tr", {}, el("td", {}, el("b", { class: "mono", style: "color:var(--pink)" }, String(i + 1))), el("td", {}, patch(p)),
+        el("td", { style: "min-width:120px" }, vol(p)), el("td", {}, when),
+        el("td", {}, x.trig ? el("span", { class: "row", style: "gap:6px;align-items:center" }, time, el("span", { class: "sub" }, "ms")) : el("span", { class: "sub" }, "")),
+        el("td", {}, drop(p)));
+    });
+    body.append(el("p", { class: "sub" }, "Every layer plays on MIDI channels 1 to 6 and 12 to 15, and from the FM-1's keys. A delayed layer comes in after its time (not if the note ends first); a release layer sounds when the note ends, for its time. All share the six FM voices."),
+      table(["LAYER", "PATCH", "VOLUME", "PLAYS", "TIME", ""], rows), add("Add a layer", CH_ALL));
+  } else if (kind === "split") {
+    const taken = new Set(ps.filter(x => x.chan < 16).map(x => x.chan)), next = [...Array(16).keys()].find(c => !taken.has(c)) ?? 0;
+    const rows = ps.map((x, p) => [x, p]).filter(([x]) => x.chan < 16).sort((a, b) => a[0].chan - b[0].chan).map(([x, p]) => {
+      const ch = el("select", { "aria-label": "MIDI channel", onchange: e => set(p, 0x21, +e.target.value, "chan") });
+      for (let c = 0; c < 16; c++) ch.add(new Option(`Channel ${c + 1}` + (c >= 6 && c <= 10 ? " (instead of the PSG's)" : c >= 14 ? " (notes only)" : ""), c));
+      ch.value = x.chan;
+      return el("tr", {}, el("td", {}, ch), el("td", {}, patch(p)), el("td", { style: "min-width:120px" }, vol(p)), el("td", {}, drop(p)));
+    });
+    body.append(el("p", { class: "sub" }, "Each MIDI channel plays its patch. Two rows on one channel play together. The FM-1's keys play the part selected on it. All share the six FM voices."),
+      table(["MIDI CHANNEL", "PATCH", "VOLUME", ""], rows), add("Add a channel", next));
+  } else {
+    body.append(el("p", { class: "sub" }, "The FM-1's parts are set up as a mix of layers and channels (from its SETUP page). Pick Single, Layer or Split above to start again from part 1."),
+      table(["PART", "PATCH", "MIDI CHANNEL", "PLAYS"], ps.map((x, p) => el("tr", {}, el("td", {}, String(p + 1)), el("td", {}, slotName(x.slot) + " " + (state.lib[x.slot]?.name || "")),
+        el("td", {}, x.chan === CH_OFF ? "Off" : x.chan === CH_ALL ? "1-6, 12-15" : String(x.chan + 1)), el("td", {}, WHEN[x.trig])))));
+  }
+}
+async function useSetup(kind) {                 // part 1 kept; the other parts that are on carried over, else one added
+  if (state.mode !== 0) await setMode(0);
+  const ps = state.parts, on = ps.map((x, p) => p).filter(p => p === 0 || ps[p].chan !== CH_OFF);
+  const keep = on.length > 1 ? on : [0, 1];
+  if (kind !== "single" && on.length === 1) { await setPartParam(1, 0x25, ps[0].slot); ps[1].slot = ps[0].slot; }
+  for (let p = 0; p < 6; p++) {
+    const chan = kind === "single" ? (p ? CH_OFF : CH_ALL) : !keep.includes(p) ? CH_OFF : kind === "layer" ? CH_ALL : keep.indexOf(p);
+    const trig = kind === "split" || (kind === "single" && !p) ? 0 : ps[p].trig;
+    if (trig !== ps[p].trig) { await setPartParam(p, 0x23, trig); ps[p].trig = trig; }
+    if (chan !== ps[p].chan) { await setPartParam(p, 0x21, chan); ps[p].chan = chan; }
+  }
 }
 async function setMode(m) {
   for (let t = 0; t < 8; t++) { const r = song.wait("partok", x => x === 0x7F, 300); cc16(0x26, m); if (await r.then(() => true, () => false)) break; }
@@ -1429,17 +1504,11 @@ async function setMode(m) {
 $("mode").onchange = () => job("Setting", async () => {
   const m = +$("mode").value;
   await setMode(m);
-  setStatus(["Multi: each part plays as many notes as there are voices.", "GenMDM: MIDI channels 1 to 6 are FM parts 1 to 6, one note each.",
+  setStatus(["Normal: the FM-1 plays as Setup says.", "GenMDM: MIDI channels 1 to 6 are FM parts 1 to 6, one note each.",
              "Panel: any MIDI channel plays the FM-1's selected part."][m], "ok");
 });
 $("readparts").onclick = () => job("Reading", readParts);
-$("single").onclick = () => job("Setting", async () => {       // part 1 on All, the rest off
-  if (state.mode !== 0) await setMode(0);
-  for (let p = 0; p < 6; p++) { const c = p ? CH_OFF : CH_ALL; await setPartParam(p, 0x21, c); state.parts[p].chan = c; }
-  renderParts();
-  setStatus("One synth: part 1 plays on All. Keep to make it stick.", "ok");
-});
-$("keepparts").onclick = () => job("Keeping", async () => { const r = await keep(); setStatus(r === 0 ? "Multi kept." : "Not kept: error " + r, r === 0 ? "ok" : "err"); });
+$("keepparts").onclick = () => job("Keeping", async () => { const r = await keep(); setStatus(r === 0 ? "Setup kept." : "Not kept: error " + r, r === 0 ? "ok" : "err"); });
 
 // ---- the Drums tab: the kit and the PSG shapes found in the songs
 function renderDrums() {

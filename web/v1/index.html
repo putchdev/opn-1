@@ -1,0 +1,1396 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<!-- OPN-1: plays and loads the FM-1 running OPN-1 over USB-MIDI (WebMIDI: Chrome or Edge).
+     Serve it from localhost, which WebMIDI accepts as secure:  python3 -m http.server -d web 8000
+     then open http://localhost:8000/. Protocol: firmware/src/opn1.c. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OPN-1</title>
+<style>
+:root {
+  --bg: #050506; --card: #111114; --line: #2a2a31; --text: #eceef3; --dim: #8d919e; --soft: #1b1b20;
+  --acc: #e8242c; --acc-soft: #2a0d10; --warm: #ff6a3d; --warm-soft: #2e140c; --good: #3ccf7a; --bad: #ff5a5a;
+  --pad: #eceef3; --shadow: 0 2px 14px rgba(0, 0, 0, .6); --white-key: #e4e6ec; --black-key: #0b0b0d;
+  --chrome: linear-gradient(180deg, #fff 0%, #cfe3ff 38%, #4a5466 50%, #b7a48c 62%, #fff 100%);
+  --display: "Arial Black", "Helvetica Neue", Impact, system-ui, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg) repeating-linear-gradient(0deg, transparent 0 3px, rgba(255, 255, 255, .015) 3px 4px); color: var(--text); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; max-width: 1000px; margin: 0 auto; flex-wrap: wrap; }
+.logo { font: italic 900 34px/1 var(--display); letter-spacing: 1px; background: var(--chrome); -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(2px 2px 0 #7a0e14); }
+.logo span { background: inherit; -webkit-background-clip: text; background-clip: text; }
+.top { border-bottom: 6px solid var(--acc); box-shadow: 0 4px 0 var(--bg), 0 6px 0 var(--acc), 0 9px 0 var(--bg), 0 10px 0 #7a0e14; margin-bottom: 26px !important; }
+.tag { color: var(--dim); font: 12px ui-monospace, monospace; letter-spacing: 2px; text-transform: uppercase; margin-top: 4px; }
+.right { display: flex; gap: 8px; align-items: center; }
+main { max-width: 1000px; margin: 0 auto; padding: 0 20px 40px; display: grid; gap: 16px; }
+main > * { min-width: 0; }                      /* (else the keyboard's width stretches every card) */
+.card { background: var(--card); border: 1px solid var(--line); border-top: 3px solid var(--acc); border-radius: 6px; padding: 20px 22px; box-shadow: var(--shadow); }
+.card > h2 { display: inline-block; margin: 0 0 12px; font: italic 900 20px/1.2 var(--display); letter-spacing: .5px; text-transform: uppercase; vertical-align: middle;
+  background: var(--chrome); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.step { display: inline-grid; place-items: center; width: 26px; height: 26px; margin-right: 10px; border-radius: 4px;
+  background: var(--acc); color: #fff; font-weight: 700; font-size: 14px; vertical-align: middle; }
+h3 { margin: 18px 0 2px; font-size: 15px; }
+.sub { color: var(--dim); font-size: 13px; margin: 2px 0 10px; }
+.hide { display: none !important; }
+button { font: inherit; color: var(--text); background: var(--soft); border: 1px solid var(--line); border-radius: 6px; padding: 8px 14px; cursor: pointer; }
+button:hover { border-color: var(--acc); }
+button:disabled { opacity: .5; cursor: default; border-color: var(--line); }
+button.primary { background: linear-gradient(180deg, #ff4a50, var(--acc) 55%, #a8141b); color: #fff; border-color: #ff4a50; font-weight: 700; padding: 10px 18px; text-transform: uppercase; letter-spacing: .5px; }
+button.small { padding: 4px 10px; font-size: 13px; }
+a.gh { color: var(--dim); font-size: 13px; text-decoration: none; padding: 4px 6px; }
+a.gh:hover { color: var(--text); }
+button.on { background: var(--acc); color: #fff; border-color: #ff4a50; }
+select, input[type=number] { font: inherit; color: var(--text); background: var(--soft); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; }
+.pill { display: inline-flex; align-items: center; gap: 8px; border-radius: 999px; padding: 6px 14px; font-size: 13px; }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--dim); }
+.pill.ok .dot { background: var(--good); }
+.pill.err .dot { background: var(--bad); }
+.drop { display: block; border: 2px dashed var(--line); border-radius: 8px; padding: 26px; text-align: center; cursor: pointer; background: var(--soft); transition: border-color .15s, background .15s; }
+.drop:hover, .drop.over { border-color: var(--acc); background: var(--acc-soft); }
+.drop b { display: block; font-size: 16px; }
+.drop span { color: var(--dim); font-size: 13px; }
+.gamehead { display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 16px; }
+.gametitle { font: italic 900 22px/1.2 var(--display); }
+.progress { height: 8px; background: var(--soft); border-radius: 999px; overflow: hidden; margin-top: 12px; }
+.progress div { height: 100%; width: 0; background: var(--acc); transition: width .15s; }
+#status { color: var(--dim); font-size: 13px; min-height: 20px; margin-top: 8px; }
+#status { font-family: ui-monospace, monospace; }
+#status.ok { color: var(--good); }
+#status.err { color: var(--bad); }
+.toggle { float: right; display: flex; gap: 6px; align-items: center; font-size: 14px; color: var(--dim); }
+.songs { display: grid; gap: 8px; }
+.songrow { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; }
+.songrow.playing { border-color: var(--acc); background: var(--acc-soft); }
+.songrow .t { flex: 1; min-width: 0; }
+.songrow .t b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.songrow .t span { color: var(--dim); font-size: 13px; }
+.badge { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 999px; background: var(--soft); color: var(--dim); margin-left: 4px; }
+.badge.warm { background: var(--warm-soft); color: var(--warm); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+.tile { text-align: left; border: 1px solid var(--line); border-radius: 6px; padding: 12px; background: var(--card); cursor: pointer; display: grid; gap: 2px; }
+.tile:hover { border-color: var(--acc); }
+.tile.sel { border-color: var(--acc); background: var(--acc-soft); }
+.tile .role { font-weight: 800; font-size: 16px; text-transform: uppercase; letter-spacing: .5px; }
+.tile .meta { color: var(--dim); font-size: 12px; }
+.tile .hear { justify-self: start; margin-top: 6px; }
+.pads { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; }
+.pad { aspect-ratio: 1.3; border-radius: 6px; border: 1px solid var(--line); background: var(--soft); display: grid; place-content: center; text-align: center; cursor: pointer; user-select: none; }
+.pad b { font-size: 16px; }
+.pad span { font-size: 12px; color: var(--dim); }
+.pad:active, .pad.hit { background: var(--warm); color: #fff; border-color: var(--warm); }
+.pad:active span, .pad.hit span { color: #fff; }
+.parts { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.parts button { display: grid; text-align: left; padding: 10px 16px; min-width: 130px; }
+.parts button span { font-size: 12px; opacity: .8; }
+.controls { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; font-size: 14px; }
+.controls label { display: flex; gap: 8px; align-items: center; color: var(--dim); }
+.controls input[type=range] { accent-color: var(--acc); }
+.kbwrap { overflow-x: auto; padding-bottom: 4px; }
+.kb { position: relative; height: 150px; user-select: none; touch-action: none; margin: 0 auto; }
+.key { position: absolute; top: 0; border: 1px solid rgba(0, 0, 0, .25); border-radius: 0 0 7px 7px; display: flex; align-items: flex-end; justify-content: center; font-size: 10px; padding-bottom: 6px; }
+.key.w { background: var(--white-key); color: #8a93a6; height: 150px; z-index: 1; }
+.key.b { background: var(--black-key); height: 92px; z-index: 2; }
+.key.down { background: var(--acc) !important; color: #fff; }
+details.card > summary { cursor: pointer; font: italic 900 16px var(--display); text-transform: uppercase; color: var(--dim); }
+details.card[open] > summary { margin-bottom: 12px; }
+.adv { display: grid; gap: 14px; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+label.ctl { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center; font-size: 12px; color: var(--dim); }
+label.ctl input[type=range] { grid-column: 1 / 3; width: 100%; accent-color: var(--acc); }
+label.ctl output { color: var(--text); font-variant-numeric: tabular-nums; }
+.grid-global { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 16px; }
+.ops { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-top: 12px; }
+.op { border: 1px solid var(--line); border-radius: 6px; padding: 10px; display: grid; gap: 8px; }
+.op h3 { margin: 0; font-size: 13px; color: var(--warm); display: flex; justify-content: space-between; }
+.op h3 span { color: var(--dim); font-weight: normal; }
+.alg { font-family: ui-monospace, monospace; color: var(--dim); font-size: 12px; }
+table.list { border-collapse: collapse; width: 100%; font-size: 13px; }
+table.list th, table.list td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); }
+table.list th { color: var(--dim); font-weight: normal; }
+.help { display: grid; gap: 6px; }
+.help h3 { margin-top: 14px; color: var(--acc); text-transform: uppercase; letter-spacing: .5px; font-size: 14px; }
+.help h3:first-child { margin-top: 0; }
+.help p, .help ol { margin: 0 0 6px; }
+.help ol { padding-left: 20px; display: grid; gap: 4px; }
+.help td:first-child { width: 32%; color: var(--text); font-weight: 600; padding-right: 14px; }
+.help td { overflow-wrap: anywhere; }
+.help td { vertical-align: top; }
+@media (max-width: 600px) { .top, main { padding-left: 14px; padding-right: 14px; } .card { padding: 16px; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <div><div class="logo">OPN<span>-1</span></div><div class="tag">16-bit FM sound for the M-VAVE FM-1</div></div>
+  <div class="right">
+    <button id="pill" class="pill" title="MIDI connection (Advanced has the output)"><span class="dot"></span><span id="pilltext">Starting</span></button>
+    <button id="panic" class="small" title="Every note off">Panic</button>
+    <a class="gh" href="https://github.com/putchdev/opn-1" target="_blank" rel="noopener">GitHub</a>
+  </div>
+</header>
+<main>
+  <section class="card">
+    <h2>Hear it</h2>
+    <p class="sub">A new song played on an FM-1 running OPN-1, with instruments from Sonic the Hedgehog.</p>
+    <audio controls preload="none" src="../sample.mp3" style="width: 100%"></audio>
+  </section>
+  <details class="card" id="help">
+    <summary>How to use</summary>
+    <div class="help">
+      <h3>Getting started</h3>
+      <ol>
+        <li>Install the OPN-1 firmware on the FM-1 first: see
+          <a href="https://github.com/putchdev/opn-1#installing-the-firmware" target="_blank" rel="noopener">installing the firmware</a>.</li>
+        <li>Plug the FM-1 in with USB and open this page in Chrome or Edge. Allow MIDI when the browser asks.</li>
+        <li>The pill at the top right should say <b>FM-1 connected</b>. If it names another device, choose the FM-1
+          (it shows as <b>OPN-1 FM-1</b>) under Advanced, MIDI output.</li>
+        <li>Drop some VGM or VGZ files from one game into <b>Load a game</b>. Several songs from the same game give the
+          most sounds.</li>
+        <li>Press <b>Send sounds to FM-1</b>. The FM-1 keeps them, even after it is switched off, until you send another
+          game's sounds.</li>
+      </ol>
+      <p class="sub">A fresh FM-1 has no sounds of its own. Until you send some, the FM parts are silent.</p>
+      <p class="sub">Installing OPN-1 on your FM-1 is done at your own risk. It comes with no warranty, and its authors
+        accept no responsibility for damaged or unusable devices.</p>
+
+      <h3>Songs</h3>
+      <p>Press play on a song to hear it on the FM-1. The song is streamed while it plays, so keep this tab open.
+        Nothing is stored on the device. While a song plays, the FM-1's keys and the knobs do not change what you hear;
+        knob changes apply once it stops.</p>
+
+      <h3>On the FM-1</h3>
+      <table class="list">
+        <tr><th>Control</th><th>What it does</th></tr>
+        <tr><td>SELECT knob</td><td>Picks the part the keys play: POLY (up to six FM notes), FM 1 to 6, PSG 1 to 3,
+          NOISE or DRUMS</td></tr>
+        <tr><td>PRESETS knob</td><td>Picks the instrument (or the square-wave shape on a PSG part, or the game's noise sound on
+          NOISE)</td></tr>
+        <tr><td>OCT buttons</td><td>Octave down and up</td></tr>
+        <tr><td>ALGORITHM knob</td><td>How the four operators connect, 1 to 8: the biggest change to a sound</td></tr>
+        <tr><td>KNOB 1 to 4</td><td>Whatever the screen shows above them, set by the buttons below</td></tr>
+        <tr><td>HOME</td><td>Sound: brightness, attack, release, feedback</td></tr>
+        <tr><td>EDIT</td><td>Tone of one operator: level, multiplier, detune, second decay. Press again for the next
+          operator</td></tr>
+        <tr><td>ENV</td><td>Envelope of one operator: attack, decay, sustain, release. Press again for the next
+          operator</td></tr>
+        <tr><td>LFO</td><td>The chip's wobble: rate (shared by all channels), pitch depth, volume depth, which operators
+          it moves</td></tr>
+        <tr><td>FX</td><td>Vibrato depth, speed and delay, and Double (POLY plays each note twice, slightly detuned,
+          for a thicker sound)</td></tr>
+        <tr><td>ARP</td><td>Arpeggiator on (press again to turn it off): mode, tempo, octaves, note length</td></tr>
+        <tr><td>GLO</td><td>Key velocity, bend range, MIDI mode, tuning</td></tr>
+        <tr><td>SEL</td><td>Next operator on EDIT and ENV, otherwise the next part</td></tr>
+        <tr><td>SAVE</td><td>Keeps the changed instrument, replacing the original</td></tr>
+        <tr><td>SEQ</td><td>Shows what every channel is playing: note, level and instrument. Opens by itself during a
+          song</td></tr>
+        <tr><td>REC</td><td>Grabs the sounds the channels are playing right now (for example from a song) onto FM 1 to 6,
+          ready to play</td></tr>
+        <tr><td>PLAY</td><td>Stops the song</td></tr>
+      </table>
+      <p class="sub">A <b>*</b> after an instrument's name means it has changes you have not saved. To undo them, turn
+        PRESETS one step away and back. After SAVE the original is replaced; send the game's sounds again to get it
+        back.</p>
+
+      <h3>Playing from a MIDI keyboard or DAW</h3>
+      <p>Connect over USB, or to the FM-1's TRS MIDI input with a TRS to MIDI cable. In the GLO page, MIDI mode <b>PANEL</b> makes any channel play the part on the FM-1's screen, like its own
+        keys. <b>GENMDM</b> (the default) gives each chip channel its own MIDI channel:</p>
+      <table class="list">
+        <tr><th>MIDI channel</th><th>Plays</th></tr>
+        <tr><td>1 to 6</td><td>FM channels 1 to 6, one note each. Program change picks the instrument</td></tr>
+        <tr><td>7 to 9</td><td>Square waves (PSG) 1 to 3. Program change picks the shape</td></tr>
+        <tr><td>10</td><td>The game's drums (C2 is the first), or noise if no drums were sent</td></tr>
+        <tr><td>11</td><td>Noise: hi-hats and effects</td></tr>
+        <tr><td>15, 16</td><td>Used by this page to talk to the FM-1: leave them free</td></tr>
+      </table>
+      <p class="sub">FM channels also take GenMDM's control changes for every chip setting; the Patch editor under
+        Advanced sends them.</p>
+
+      <h3>If something goes wrong</h3>
+      <table class="list">
+        <tr><th>You see</th><th>Try</th></tr>
+        <tr><td>MIDI not allowed</td><td>Allow MIDI for this page in the browser's site settings, then reload. Open the
+          page from localhost or https, not as a file</td></tr>
+        <tr><td>FM-1 not found, or "did not take the patch"</td><td>Check the cable, and that Advanced, MIDI output is
+          the FM-1</td></tr>
+        <tr><td>"The stream fell behind"</td><td>The link could not keep up for a moment. Close other MIDI apps and
+          press SEQ to hide the channel display while the song plays</td></tr>
+        <tr><td>The FM-1 says NO SOUNDS</td><td>Load a game and press Send sounds to FM-1</td></tr>
+        <tr><td>Notes stuck on</td><td>Press Panic at the top right</td></tr>
+      </table>
+    </div>
+  </details>
+
+  <section class="card">
+    <span class="step">1</span><h2>Load a game</h2>
+    <label id="drop" class="drop">
+      <input type="file" id="files" accept=".vgm,.vgz" multiple hidden>
+      <b>Drop VGM or VGZ files here</b>
+      <span>or click to choose. Several songs from one game give the most sounds.</span>
+    </label>
+    <div id="gamebox" class="hide">
+      <div class="gamehead">
+        <div><div id="gametitle" class="gametitle"></div><div id="gamesub" class="sub"></div></div>
+        <button id="sendsounds" class="primary">Send sounds to FM-1</button>
+      </div>
+      <div class="progress hide" id="prog"><div id="progbar"></div></div>
+    </div>
+    <div id="status"></div>
+  </section>
+
+  <section class="card hide" id="songcard">
+    <label class="toggle"><input type="checkbox" id="loop" checked> Loop</label>
+    <span class="step">2</span><h2>Songs</h2>
+    <p class="sub">Streamed to the FM-1 while they play: keep this tab open.</p>
+    <div id="songs" class="songs"></div>
+  </section>
+
+  <section class="card hide" id="soundcard">
+    <span class="step">3</span><h2>Sounds</h2>
+    <p class="sub" id="soundsub"></p>
+    <h3>Instruments</h3>
+    <p class="sub">Pick one to play it from the keyboard below, or from the FM-1's own keys in POLY.</p>
+    <div id="insts" class="grid"></div>
+    <button id="moreinsts" class="small hide" style="margin-top:10px"></button>
+    <div id="drumwrap">
+      <h3>Drums</h3>
+      <p class="sub">Tap a pad to hear it on the FM-1 (once the sounds are sent). Shift-tap to hear it here.</p>
+      <div id="pads" class="pads"></div>
+    </div>
+    <div id="noisewrap">
+      <h3>Hi-hats and noise</h3>
+      <p class="sub">The noise sounds the game shaped for its percussion. Pick one for the Hi-hats part.</p>
+      <div id="noises" class="grid"></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <span class="step">4</span><h2>Play</h2>
+    <div class="parts" id="parts"></div>
+    <div class="controls">
+      <button id="octdn" class="small">Octave down</button><b id="octv">C3</b><button id="octup" class="small">Octave up</button>
+      <label>Velocity <input id="vel" type="range" min="1" max="127" value="127"></label>
+      <label>Bend <input id="bend" type="range" min="-8192" max="8191" value="0"></label>
+    </div>
+    <div class="kbwrap"><div class="kb" id="kb"></div></div>
+    <p class="sub">Computer keys play too: Z to M and Q to U, the rows above for sharps. On the FM-1 itself, SELECT picks
+      POLY, DRUMS, NOISE or a PSG part, and PRESETS the sound. The four knobs and ALGORITHM shape it: HOME, EDIT
+      and ENV (press again for the next operator), LFO, FX and GLO choose what the knobs do, ARP arpeggiates, and SAVE
+      keeps the changed sound. SEQ shows what every channel is playing (it opens by itself during a song), and REC
+      grabs the channels' sounds onto FM 1 to 6.</p>
+  </section>
+
+  <details class="card" id="advanced">
+    <summary>Advanced</summary>
+    <div class="adv">
+      <div class="row">
+        <label>MIDI output <select id="out"><option>none</option></select></label>
+        <label><input type="checkbox" id="normalise" checked> Normalise instrument levels</label>
+        <span class="sub" id="linkinfo"></span>
+      </div>
+      <div>
+        <h3>Patch editor</h3>
+        <p class="sub">One FM channel at a time, with GenMDM's CCs. Instruments sent from a game start here too.</p>
+        <div class="row" id="edchans"></div>
+        <div class="row" style="margin:12px 0">
+          <select id="preset"></select>
+          <button id="patchsend" class="small">Send whole patch</button>
+          <span class="alg" id="algdesc"></span>
+        </div>
+        <div class="grid-global" id="global"></div>
+        <div class="ops" id="ops"></div>
+      </div>
+      <div id="squarewrap">
+        <h3>Square-wave shapes</h3>
+        <p class="sub">The volume shapes the game gave its square-wave notes. Many are near alike: the chip has nothing else to vary.</p>
+        <table class="list" id="squares"></table>
+      </div>
+    </div>
+  </details>
+</main>
+<script>
+"use strict";
+// ---- an empty patch (the FM-1 has no built-in sounds: only the sound set sent from here)
+const EMPTY = { name: "EMPTY", alg: 0, fb: 0, ams: 0, pms: 0,
+                op: [0, 1, 2, 3].map(() => ({ dt: 0, mul: 0, tl: 127, ks: 0, ar: 0, am: 0, d1r: 0, d2r: 0, sl: 0, rr: 0 })) };
+const ALGS = ["1>2>3>4", "(1+2)>3>4", "(1+(2>3))>4", "((1>2)+3)>4", "(1>2)+(3>4)", "1>(2+3+4)", "(1>2)+3+4", "1+2+3+4"];
+const CARRIERS = [8, 8, 8, 8, 10, 14, 14, 15];
+
+// ---- the parameters: CC, bits of range (the value goes out shifted to the top of 0..127)
+const OPPARAMS = [
+  { k: "tl", name: "Attenuation (TL, 0 = loudest)", cc: 16, max: 127, invert: true }, { k: "mul", name: "Multiple", cc: 20, max: 15 },
+  { k: "dt", name: "Detune", cc: 24, max: 7 }, { k: "ks", name: "Rate scale", cc: 39, max: 3 },
+  { k: "ar", name: "Attack", cc: 43, max: 31 }, { k: "d1r", name: "Decay 1", cc: 47, max: 31 },
+  { k: "d2r", name: "Decay 2", cc: 51, max: 15 }, { k: "sl", name: "Sustain lvl", cc: 55, max: 15 },
+  { k: "rr", name: "Release", cc: 59, max: 15 }, { k: "am", name: "AM", cc: 70, max: 1 },
+];
+const CH = ["FM 1", "FM 2", "FM 3", "FM 4", "FM 5", "FM 6", "PSG 1", "PSG 2", "PSG 3", "NOISE"];
+const state = {
+  out: null, oct: 3, vel: 127, part: "inst", edCh: 0, normalise: true,
+  fm: Array.from({ length: 6 }, () => ({ preset: 0, pan: 3, patch: structuredClone(EMPTY) })),
+  lfo: { on: 0, speed: 0 }, held: new Map(),
+  songs: [], found: [], drums: [], psgs: [], set: [], psgSent: [], kitSent: 0, inst: -1, noise: -1, allInsts: false,
+};
+const $ = id => document.getElementById(id);
+function send(bytes) { if (state.out) state.out.send(bytes); }
+function cc(ch, n, v) { send([0xB0 | ch, n, Math.max(0, Math.min(127, v | 0))]); }
+function scaled(v, max) { return v << (7 - Math.round(Math.log2(max + 1))); }   // e.g. 0..31 -> v << 2
+function setStatus(t, cls) { const s = $("status"); s.textContent = t; s.className = cls || ""; }
+function setProgress(f) {                       // 0..1, or null to hide
+  $("prog").classList.toggle("hide", f === null);
+  if (f !== null) $("progbar").style.width = (100 * Math.max(0, Math.min(1, f))).toFixed(1) + "%";
+}
+const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+
+// ---- MIDI: the FM-1 found by name; the pill says how it stands
+function setConn(ok, text) { $("pill").className = "pill " + (ok ? "ok" : "err"); $("pilltext").textContent = text; }
+async function startMidi() {
+  if (!navigator.requestMIDIAccess) { setConn(false, "Needs Chrome or Edge"); return; }
+  try {
+    const access = await navigator.requestMIDIAccess({ sysex: false });
+    const fill = () => {
+      const sel = $("out"), prev = sel.value, outs = [...access.outputs.values()];
+      sel.innerHTML = "";
+      if (!outs.length) sel.add(new Option("none", ""));
+      for (const o of outs) sel.add(new Option(o.name, o.id));
+      const fm1 = outs.find(o => o.id === prev) || outs.find(o => /fm-?1|felucca/i.test(o.name)) || outs[0];
+      if (fm1) sel.value = fm1.id;
+      state.out = fm1 || null;
+      const ins = [...access.inputs.values()];      // the FM-1's answers: the input with the output's name
+      const inp = fm1 && (ins.find(i => i.name === fm1.name) || ins.find(i => /fm-?1|felucca/i.test(i.name)));
+      for (const i of ins) i.onmidimessage = i === inp ? e => song.reply(e.data) : null;
+      if (!fm1) setConn(false, "FM-1 not found: plug it in");
+      else setConn(true, /fm-?1|felucca/i.test(fm1.name) ? "FM-1 connected" : "Sending to " + fm1.name);
+    };
+    $("out").onchange = () => { state.out = access.outputs.get($("out").value) || null; fill(); };
+    access.onstatechange = fill;
+    fill();
+  } catch (e) {
+    setConn(false, "MIDI not allowed");
+    setStatus("The browser refused MIDI. Open the page from localhost and allow MIDI when asked.", "err");
+  }
+}
+$("pill").onclick = () => { $("advanced").open = true; $("advanced").scrollIntoView({ behavior: "smooth" }); };
+
+// ---- the parts the keyboard plays: each a set of MIDI channels (the page shares notes out among them)
+const PARTS = {
+  inst: { label: "Instrument", sub: "FM, up to six notes", chans: () => state.kitSent ? [0, 1, 2, 3, 4] : [0, 1, 2, 3, 4, 5] },
+  drums: { label: "Drums", sub: "the game's kit", chans: () => [9] },
+  hats: { label: "Hi-hats", sub: "noise", chans: () => [10] },
+  square: { label: "Square wave", sub: "PSG, three notes", chans: () => [6, 7, 8] },
+};
+function buildParts() {
+  $("parts").innerHTML = "";
+  for (const [id, p] of Object.entries(PARTS)) {
+    const b = document.createElement("button");
+    b.className = state.part === id ? "on" : "";
+    b.innerHTML = `<b>${p.label}</b><span>${p.sub}</span>`;
+    b.onclick = () => setPart(id);
+    $("parts").appendChild(b);
+  }
+}
+function setPart(id) {
+  for (const n of [...state.held.keys()]) noteOff(n);
+  state.part = id;
+  if (id === "drums") { state.oct = 2; buildKeys(); }      // (the kit starts at C2)
+  buildParts();
+}
+
+// ---- notes: shared out among the part's channels, a free one first, else the oldest
+let order = 0;
+function noteOn(note) {
+  if (note < 0 || note > 127 || state.held.has(note)) return;
+  const chans = PARTS[state.part].chans(), busy = new Map([...state.held.values()].map(h => [h.ch, h.at]));
+  const ch = chans.find(c => !busy.has(c)) ?? chans.reduce((a, c) => busy.get(c) < busy.get(a) ? c : a, chans[0]);
+  for (const [n, h] of state.held) if (h.ch === ch) noteOff(n);
+  state.held.set(note, { ch, at: order++ });
+  send([0x90 | ch, note, state.vel]);
+  keyEl(note)?.classList.add("down");
+}
+function noteOff(note) {
+  const h = state.held.get(note);
+  if (!h) return;
+  send([0x80 | h.ch, note, 0]);
+  state.held.delete(note);
+  keyEl(note)?.classList.remove("down");
+}
+function panic() {
+  for (const n of [...state.held.keys()]) noteOff(n);
+  for (let ch = 0; ch < 11; ch++) for (let n = 0; n < 128; n++) send([0x80 | ch, n, 0]);
+}
+$("panic").onclick = panic;
+
+// ---- the keyboard: three octaves from state.oct
+const NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+const isBlack = n => [1, 3, 6, 8, 10].includes(n % 12);
+function keyEl(note) { return document.querySelector(`.key[data-n="${note}"]`); }
+function buildKeys() {
+  const kb = $("kb"), first = 12 * (state.oct + 1), count = 37, W = 36;
+  kb.innerHTML = "";
+  let x = 0;
+  for (let n = first; n < first + count; n++) {
+    const el = document.createElement("div");
+    el.dataset.n = n;
+    if (isBlack(n)) { el.className = "key b"; el.style.left = (x - 12) + "px"; el.style.width = "24px"; }
+    else { el.className = "key w"; el.style.left = x + "px"; el.style.width = W + "px"; x += W; if (n % 12 === 0) el.textContent = "C" + (n / 12 - 1); }
+    if (state.held.has(n)) el.classList.add("down");
+    kb.appendChild(el);
+  }
+  kb.style.width = x + "px";
+  $("octv").textContent = "C" + state.oct;
+}
+const pointerNote = new Map();
+$("kb").addEventListener("pointerdown", e => {
+  const k = e.target.closest(".key"); if (!k) return;
+  $("kb").setPointerCapture(e.pointerId);
+  pointerNote.set(e.pointerId, +k.dataset.n); noteOn(+k.dataset.n);
+});
+$("kb").addEventListener("pointermove", e => {
+  if (!pointerNote.has(e.pointerId)) return;
+  const k = document.elementFromPoint(e.clientX, e.clientY)?.closest(".key");
+  const n = k ? +k.dataset.n : null, prev = pointerNote.get(e.pointerId);
+  if (n !== prev) { noteOff(prev); if (n !== null) { noteOn(n); pointerNote.set(e.pointerId, n); } }
+});
+const endPointer = e => { if (pointerNote.has(e.pointerId)) { noteOff(pointerNote.get(e.pointerId)); pointerNote.delete(e.pointerId); } };
+$("kb").addEventListener("pointerup", endPointer);
+$("kb").addEventListener("pointercancel", endPointer);
+const KEYMAP = { z: 0, s: 1, x: 2, d: 3, c: 4, v: 5, g: 6, b: 7, h: 8, n: 9, j: 10, m: 11, ",": 12,
+                 q: 12, 2: 13, w: 14, 3: 15, e: 16, r: 17, 5: 18, t: 19, 6: 20, y: 21, 7: 22, u: 23, i: 24 };
+const kbdHeld = new Map();
+addEventListener("keydown", e => {
+  if (e.repeat || e.metaKey || e.ctrlKey || e.target.matches("input, select")) return;
+  const off = KEYMAP[e.key.toLowerCase()];
+  if (off === undefined) return;
+  const n = 12 * (state.oct + 1) + off;
+  kbdHeld.set(e.key.toLowerCase(), n); noteOn(n);
+});
+addEventListener("keyup", e => {
+  const n = kbdHeld.get(e.key.toLowerCase());
+  if (n !== undefined) { noteOff(n); kbdHeld.delete(e.key.toLowerCase()); }
+});
+addEventListener("blur", () => { for (const n of kbdHeld.values()) noteOff(n); kbdHeld.clear(); });
+$("octdn").onclick = () => { if (state.oct > 0) { state.oct--; buildKeys(); } };
+$("octup").onclick = () => { if (state.oct < 7) { state.oct++; buildKeys(); } };
+$("vel").oninput = e => { state.vel = +e.target.value; };
+$("bend").oninput = e => { const v = +e.target.value + 8192; for (const ch of PARTS[state.part].chans()) send([0xE0 | ch, v & 127, v >> 7]); };
+const bendHome = () => { $("bend").value = 0; for (const ch of PARTS[state.part].chans()) send([0xE0 | ch, 0, 64]); };
+$("bend").addEventListener("pointerup", bendHome);
+$("bend").addEventListener("keyup", bendHome);
+$("normalise").onchange = e => { state.normalise = e.target.checked; };
+
+// ---- the song transfer and the extraction (unchanged from the tested page)
+const BANK_MAX = 128 * 1024, RING = 128 * 1024, KIT_MAX = 48 * 1024;
+const song = {
+  file: null, split: null, played: 0, starved: 0, playing: false, run: 0, waiters: [],
+  reply(d) {                                    // CCs on channel 16 from the FM-1
+    if (d[0] !== 0xBF) return;
+    const upto = (n, v) => { for (let i = 0; i < 128 && (n & 127) !== v; i++) n++; return n; };   // a count mod 128
+    if (d[1] >= 0x65 && d[1] <= 0x67) link.held(d[1] - 0x65, d[2]);
+    if (d[1] === 0x77) this.played = upto(this.played, d[2]);
+    if (d[1] === 0x7B) { this.starved = d[2]; onStarved(); }
+    if (d[1] === 0x73) this.resolve("status", d[2]);
+    if (d[1] === 0x6E) this.resolve("heard", d[2]);
+    if (d[1] === 0x4D) this.resolve("saved", d[2]);
+    if (d[1] === 0x56 || d[1] === 0x57) this.resolve("patch", d[1] === 0x56);
+    if (d[1] === 0x46 || d[1] === 0x47) this.resolve("psgi", d[1] === 0x46);
+    if (d[1] === 0x74) {                        // playing or not: a song that stops ends the page's stream
+      const was = this.playing;
+      this.playing = d[2] === 1;
+      onPlaying(this.playing);
+      if (was && !this.playing) this.run++;
+    }
+    this.resolve("tick", 0);
+  },
+  resolve(kind, v) { this.waiters = this.waiters.filter(w => (w.kind === kind && w.ok(v)) ? (w.done(v), false) : true); },
+  wait(kind, ok, ms) {
+    return new Promise((done, fail) => {
+      const w = { kind, ok, done: v => { clearTimeout(t); done(v); } };
+      const t = setTimeout(() => { this.waiters = this.waiters.filter(x => x !== w); fail(new Error("no answer from the FM-1")); }, ms);
+      this.waiters.push(w);
+    });
+  },
+};
+const crcTable = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
+function crc32(b) { let c = 0xFFFFFFFF; for (const x of b) c = crcTable[(c ^ x) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+const u32 = (b, a) => (b[a] | b[a + 1] << 8 | b[a + 2] << 16 | b[a + 3] << 24) >>> 0;
+// a command's length, from the VGM specification's table (0: unknown)
+function cmdLen(b, p) {
+  const c = b[p];
+  if (c === 0x67) return 7 + u32(b, p + 3);
+  if ((c >= 0x30 && c <= 0x3F) || c === 0x4F || c === 0x50 || c === 0x94) return 2;
+  if ((c >= 0x40 && c <= 0x5F) || c === 0x61 || (c >= 0xA0 && c <= 0xBF)) return 3;
+  if (c === 0x62 || c === 0x63 || c === 0x66 || (c >= 0x70 && c <= 0x8F)) return 1;
+  if (c === 0x68) return 12;
+  if (c === 0x90 || c === 0x91 || c === 0x95 || c >= 0xE0) return 5;
+  if (c === 0x92) return 6;
+  if (c === 0x93) return 11;
+  if (c >= 0xC0 && c <= 0xDF) return 4;
+  return 0;
+}
+// the file as the FM-1 takes it: the PCM bank as an image ([n][lengths][bytes]), and the commands without the
+// data blocks, with the loop point's place in them (as vgm_split in tests/vgm_compare.cpp)
+function vgmSplit(b) {
+  const ver = u32(b, 8), start = ver >= 0x150 && u32(b, 0x34) ? 0x34 + u32(b, 0x34) : 0x40;
+  const end = Math.min(b.length, u32(b, 4) + 4), loop = u32(b, 0x1C) ? 0x1C + u32(b, 0x1C) : 0;
+  const lens = [], bank = [], cmds = [];
+  let loopAt = -1;
+  for (let p = start; p < end;) {
+    if (p === loop) loopAt = cmds.length;
+    const k = cmdLen(b, p);
+    if (!k) throw new Error(`unknown command ${b[p].toString(16)} at ${p}`);
+    if (b[p] === 0x67) { if (b[p + 2] === 0) { lens.push(k - 7); bank.push(b.subarray(p + 7, p + k)); } }
+    else for (let i = 0; i < k; i++) cmds.push(b[p + i]);
+    if (b[p] === 0x66) break;
+    p += k;
+  }
+  const blen = bank.reduce((n, x) => n + x.length, 0), image = new Uint8Array(4 + 4 * lens.length + blen);
+  const put = (a, v) => { for (let i = 0; i < 4; i++) image[a + i] = v >>> (8 * i) & 255; };
+  put(0, lens.length);
+  lens.forEach((n, i) => put(4 + 4 * i, n));
+  let at = 4 + 4 * lens.length;
+  for (const x of bank) { image.set(x, at); at += x.length; }
+  return { image, cmds: Uint8Array.from(cmds), loopAt };
+}
+function gd3(b) {                               // the tag's strings: track, game (English)
+  const at = u32(b, 0x14) ? 0x14 + u32(b, 0x14) : 0;
+  if (!at || at + 12 > b.length || String.fromCharCode(...b.slice(at, at + 4)) !== "Gd3 ") return {};
+  const strs = [];
+  let p = at + 12, cur = "";
+  while (p + 1 < b.length && strs.length < 11) {
+    const c = b[p] | b[p + 1] << 8; p += 2;
+    if (c === 0) { strs.push(cur); cur = ""; } else cur += String.fromCharCode(c);
+  }
+  return { track: strs[0], game: strs[2] };
+}
+async function readVgm(f) {
+  let b = new Uint8Array(await f.arrayBuffer());
+  if (b[0] === 0x1F && b[1] === 0x8B)           // .vgz: gzip
+    b = new Uint8Array(await new Response(new Blob([b]).stream().pipeThrough(new DecompressionStream("gzip"))).arrayBuffer());
+  if (String.fromCharCode(...b.slice(0, 4)) !== "Vgm ") throw new Error(f.name + " is not a VGM file");
+  return b;
+}
+const STATUS = [0xAE, 0xEE, 0xAF, 0xEF];        // 16 bits a message: these give the top two
+function words(bytes) {                         // as messages, two bytes each (an odd last byte padded)
+  const m = [];
+  for (let i = 0; i < bytes.length; i += 2) {
+    const w = bytes[i] | (i + 1 < bytes.length ? bytes[i + 1] : 0) << 8;
+    m.push(STATUS[w >> 14], w & 127, (w >> 7) & 127);
+  }
+  return m;
+}
+function crc16(b, c = 0xFFFF) {                 // CRC-16/CCITT-FALSE, as the FM-1's
+  for (const x of b) { c ^= x << 8; for (let k = 0; k < 8; k++) c = (c & 0x8000 ? c << 1 ^ 0x1021 : c << 1) & 0xFFFF; }
+  return c;
+}
+const cc16 = (c, v) => send([0xBF, c, v & 127]);
+
+// chunks the FM-1 confirms: each says where it goes (a byte offset), and the FM-1 answers every one with how
+// many bytes it holds, so the page always sends on from there, in chunks of any size (smaller while messages are
+// being lost). Up to WINDOW_BYTES are in flight past what it holds.
+const WINDOW_BYTES = 2048;
+const link = {
+  data: [], dataOff: 0, end: Infinity,          // bytes from dataOff on (those the FM-1 does not hold yet); the end
+  more: null,                                   // n -> { b: up to n further bytes (none: not yet), end: the song's end }
+  sent: 0, committed: 0, size: 256, good: 0, resends: 0, last: 0, lastBack: 0, t0: 0, bytes: 0, part: [], afterBack: false,
+  whyBack: { timeout: 0, refused: 0 },
+  start(bytes, more) {
+    this.data = Array.from(bytes || []); this.dataOff = 0; this.more = more || null;
+    this.end = more ? Infinity : this.data.length;
+    this.sent = this.committed = this.good = this.resends = this.bytes = 0;
+    this.afterBack = false;
+    this.last = this.lastBack = this.t0 = performance.now();
+  },
+  held(k, v) {                                  // the FM-1's count, 7 bits at a time (low first, the top last)
+    this.part[k] = v;
+    if (k !== 2) return;
+    const h = this.part[0] | this.part[1] << 7 | v << 14, mod = 1 << 21;
+    const c = this.committed + ((h - this.committed) % mod + mod) % mod;   // (the count only grows)
+    if (c > this.committed && c - this.committed < mod / 2) {   // (a far jump would be an old answer: not progress)
+      if (c > this.sent) this.sent = c;         // (it has what a go-back was about to send again)
+      this.data.splice(0, Math.min(this.data.length, c - this.dataOff));
+      this.dataOff = c;
+      this.bytes += c - this.committed;
+      this.committed = c;
+      this.last = performance.now();
+      this.afterBack = false;
+      if (++this.good >= 8) { this.size = Math.min(256, this.size * 2); this.good = 0; }
+    } else if (c === this.committed && this.sent > this.committed && !this.afterBack) { this.whyBack.refused++; this.back(); }
+    // (no progress: it could not keep a chunk, so from where it is. Not while the chunks sent before a go-back are
+    // still coming in: it rightly refuses those, and only progress or the timeout ends that)
+  },
+  back() {                                      // send again from what it holds, in smaller chunks
+    const now = performance.now();
+    this.afterBack = true;
+    this.lastBack = this.last = now;
+    this.sent = this.committed;
+    this.resends++;
+    this.size = Math.max(32, this.size >> 1);
+    this.good = 0;
+  },
+  pump() {                                      // send what the window allows
+    while (this.sent < this.committed + WINDOW_BYTES && this.sent < this.end) {
+      let have = this.dataOff + this.data.length - this.sent;
+      if (have < this.size && this.more) {      // (a stream: fetch further)
+        const r = this.more(this.size * 4);
+        for (const x of r.b) this.data.push(x);
+        if (r.end) { this.more = null; this.end = this.dataOff + this.data.length; }
+        have = this.dataOff + this.data.length - this.sent;
+      }
+      let n = Math.min(this.size, have);
+      if (n & 1 && !(this.end !== Infinity && this.sent + n >= this.end)) n--;   // (odd only at the very end: a pad
+      if (n <= 0) break;                        //  byte anywhere else would land in the song)
+      const from = this.sent - this.dataOff, c = this.data.slice(from, from + n);
+      if (c.length & 1) c.push(0);              // (an odd end: padded, as the FM-1 keeps it)
+      const o = this.sent, crc = crc16(c, crc16([o & 255, o >> 8 & 255, o >> 16 & 255]));   // (where it goes too)
+      send([0xBF, 0x6A, o & 127, 0xBF, 0x6B, o >> 7 & 127, 0xBF, 0x6C, o >> 14 & 127, ...words(c),
+            0xBF, 0x6D, crc & 127, 0xBF, 0x6E, crc >> 7 & 127, 0xBF, 0x6F, crc >> 14]);
+      this.sent += c.length;
+    }
+    if (this.end !== Infinity && this.sent > this.end + 1) this.sent = this.end + (this.end & 1);
+  },
+  done() { return this.end !== Infinity && this.committed >= this.end; },
+  async tick() {
+    await song.wait("tick", () => true, 20).catch(() => {});
+    if (this.sent > this.committed && performance.now() - this.last > 150) { this.whyBack.timeout++; this.back(); }   // lost at the end: again
+    if (this.sent > this.committed && performance.now() - this.last > 5000) throw new Error("the FM-1 stopped answering");
+  },
+  rate() { return this.bytes / Math.max(1, performance.now() - this.t0); },     // KB/s (bytes per ms)
+};
+function linkInfo() { return ` · link ${link.rate().toFixed(1)} KB/s, ${link.resends} resend(s)`; }
+
+// a control message, again until the FM-1's answer comes (messages can be lost)
+async function control(c, v, kind, ok) {
+  for (let tries = 0; tries < 20; tries++) {
+    const res = song.wait(kind, ok, 300);
+    cc16(c, v);
+    try { return await res; } catch (e) { /* lost, or its answer: again */ }
+  }
+  throw new Error("the FM-1 did not answer");
+}
+async function sendImage(img, begin, end) {     // a checked upload: the song's bank (70, 72) or a drum kit (61, 63)
+  const crc = crc32(img), n = img.length;
+  await control(begin, 0, "heard", v => v === begin);
+  for (let k = 0; k < 3; k++) {                 // (three times: these have no answer, and repeats do no harm)
+    for (let i = 0; i < 5; i++) cc16(0x78 + i, crc >>> (7 * i));
+    for (let i = 0; i < 3; i++) cc16(0x7D + i, n >>> (7 * i));
+  }
+  link.start(img, null);
+  while (!link.done()) {
+    link.pump();
+    await link.tick();
+    setProgress(link.committed / n);
+  }
+  const r = await control(end, 0, "status", () => true);
+  const WHY = { 1: "the length did not match (data lost)", 2: "the CRC did not match (data damaged)", 3: "too big",
+                12: "the sample bank's layout is wrong", 14: "too many sample blocks" };
+  if (r !== 0) throw new Error(WHY[r] || "error " + r);
+}
+// the commands, endlessly when the song loops: a byte source the stream takes chunks from
+function commandSource(sp, loop) {
+  const c = sp.cmds, loops = loop && sp.loopAt >= 0, stop = loops ? c.length - 1 : c.length;   // (looping: no 0x66)
+  let at = 0;
+  return n => {
+    const out = [];
+    while (out.length < n) {
+      if (at >= stop) { if (!loops) break; at = sp.loopAt; }
+      out.push(c[at++]);
+    }
+    return out;
+  };
+}
+// ---- FM patches found in a song: each channel's registers at every key-on, the same ones counted once
+const OPOFF = [0, 8, 4, 12];                    // O1..O4 -> register offset
+function extractPatches(b, found, file) {     // into found (sound -> entry), merging songs
+  const ver = u32(b, 8), start = ver >= 0x150 && u32(b, 0x34) ? 0x34 + u32(b, 0x34) : 0x40;
+  const end = Math.min(b.length, u32(b, 4) + 4), regs = new Uint8Array(0x200), held = [];   // held[ch]: its note now
+  const freq = base => ((regs[base | 0xA4] & 7) << 8 | regs[base | 0xA0]) * 53267.03 * 2 ** (regs[base | 0xA4] >> 3 & 7) / 2 ** 21;
+  const done = (ch, t) => {                     // a note ends: its pitch over time, as the driver moved it
+    const n = held[ch];
+    held[ch] = null;
+    if (!n || t - n.t0 < 6615) return;          // (under 150 ms: too short to tell)
+    const dev = n.dev;
+    if (dev.some(d => Math.abs(d[1]) > 100)) return;      // a slide or a legato change, not vibrato
+    const lo = Math.min(0, ...dev.map(d => d[1])), hi = Math.max(0, ...dev.map(d => d[1]));
+    if (hi - lo < 6) { n.e.vibNone++; return; }
+    const ext = [];                             // the turning points: their spacing is half a cycle
+    for (let k = 1; k + 1 < dev.length; k++)
+      if ((dev[k][1] - dev[k - 1][1]) * (dev[k + 1][1] - dev[k][1]) < 0) ext.push(dev[k][0]);
+    if (ext.length < 2) { n.e.vibNone++; return; }
+    const half = (ext[ext.length - 1] - ext[0]) / (ext.length - 1);
+    n.e.vib.push({ depth: (hi - lo) / 2, rate: 1000 / (2 * half), delay: Math.max(0, dev[0][0] - 16) });
+  };
+  let t = 0;
+  for (let p = start; p < end;) {
+    const c = b[p], k = cmdLen(b, p);
+    if (!k || c === 0x66) break;
+    if (c === 0x52 || c === 0x53) {
+      const part = c - 0x52, a = b[p + 1], d = b[p + 2];
+      regs[part << 8 | a] = d;
+      if (!part && a === 0x28 && (d & 3) !== 3) {
+        const ch = (d & 3) + 3 * (d >> 2 & 1), base = (d >> 2 & 1) << 8 | (d & 3);
+        done(ch, t);
+        if (d >> 4) {                           // a key-on: this channel's patch now
+          // the bits the chip uses (games leave others set), and no panning: that is where the song put it
+          const v = [regs[base | 0xB0] & 0x3F, regs[base | 0xB4] & 0x37];
+          for (const o of OPOFF) [0x30, 0x40, 0x50, 0x60, 0x70, 0x80, 0x90].forEach((r, i) => v.push(regs[base + r + o] & [0x7F, 0x7F, 0xDF, 0x9F, 0x1F, 0xFF, 0x0F][i]));
+          const car = CARRIERS[v[0] & 7];       // the sound without its carriers' levels: those are the volume
+          const sound = v.filter((x, i) => !(i >= 2 && (i - 2) % 7 === 1 && car >> ((i - 2) / 7 | 0) & 1)).join(","), exact = v.join(",");
+          let e = found.get(sound);
+          if (!e) found.set(sound, e = { uses: 0, chans: new Set(), first: t / 44100, file, variants: new Map(), lo: 127, hi: 0,
+                                         lfos: new Map(), vib: [], vibNone: 0 });
+          e.uses++;
+          e.chans.add(ch);
+          e.variants.set(exact, (e.variants.get(exact) || 0) + 1);
+          e.lfos.set(regs[0x22] & 0x0F, (e.lfos.get(regs[0x22] & 0x0F) || 0) + 1);   // the LFO it played under
+          const f0 = freq(base);
+          if (f0 && !(ch === 2 && regs[0x27] & 0xC0)) {   // the note it played (not channel 3's special mode)
+            const n = Math.round(69 + 12 * Math.log2(f0 / 440));
+            e.lo = Math.min(e.lo, n);
+            e.hi = Math.max(e.hi, n);
+            held[ch] = { e, t0: t, f0, dev: [] };
+          }
+        }
+      } else if ((a & 0xFC) === 0xA0 && (a & 3) !== 3) {  // a new pitch on a held note (A0-A2: the low byte, which applies it)
+        const ch = (a & 3) + 3 * part, n = held[ch];
+        if (n) { const f = freq(part << 8 | (a & 3)); if (f) n.dev.push([(t - n.t0) / 44.1, 1200 * Math.log2(f / n.f0)]); }
+      }
+    } else if (c === 0x61) t += b[p + 1] | b[p + 2] << 8;
+    else if (c === 0x62) t += 735;
+    else if (c === 0x63) t += 882;
+    else if (c >= 0x70 && c <= 0x8F) t += c < 0x80 ? (c & 15) + 1 : c & 15;
+    p += k;
+  }
+  for (let ch = 0; ch < 6; ch++) done(ch, t);
+  return found;
+}
+const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
+function patchList(found) {                     // the most used first; named by number and the notes it played
+  return [...found.values()].sort((x, y) => y.uses - x.uses).map((e, i) => {
+    const regs = [...e.variants.entries()].sort((x, y) => y[1] - x[1])[0][0].split(",").map(Number);   // its commonest level
+    const am = [0, 1, 2, 3].some(k => regs[5 + 7 * k] & 0x80), usesLfo = (regs[1] & 7) > 0 || ((regs[1] >> 4 & 3) > 0 && am);
+    const lfo = [...e.lfos.entries()].sort((x, y) => y[1] - x[1])[0][0];
+    const mid = e.lo <= e.hi ? (e.lo + e.hi) / 2 : 66;
+    // its driver's vibrato, if most of its longer notes had one: the median of theirs
+    const med = k => e.vib.map(x => x[k]).sort((x, y) => x - y)[e.vib.length >> 1];
+    const vib = e.vib.length >= 2 && e.vib.length >= 0.5 * (e.vib.length + e.vibNone)
+      ? [Math.min(255, Math.max(1, Math.round(med("depth")))), Math.min(255, Math.max(1, Math.round(10 * med("rate")))),
+         Math.min(255, Math.round(med("delay") / 10))] : [0, 0, 0];
+    return { regs, uses: e.uses, chans: [...e.chans].sort(), first: e.first, file: e.file, levels: e.variants.size,
+      lo: e.lo, hi: e.hi, vib,
+      lfo: usesLfo ? 0x80 | lfo : 0,            // (only if it uses the LFO: others leave it as it is)
+      oct: e.lo <= e.hi ? 64 + Math.max(-3, Math.min(3, Math.round((mid - 66) / 12))) : 0,   // the FM-1's keys: F3-G5 at 0
+      name: `${i + 1} ` + (e.lo <= e.hi ? `${noteName(e.lo)}-${noteName(e.hi)}` : "") };
+  });
+}
+
+function regsToPatch(v, name) {                 // as the FM-1's patch_from_regs
+  const op = [0, 1, 2, 3].map(k => {
+    const r = v.slice(2 + 7 * k, 9 + 7 * k);
+    return { dt: r[0] >> 4 & 7, mul: r[0] & 15, tl: r[1] & 127, ks: r[2] >> 6, ar: r[2] & 31, am: r[3] >> 7,
+             d1r: r[3] & 31, d2r: r[4] & 31, sl: r[5] >> 4, rr: r[5] & 15, ssg: r[6] & 15 };
+  });
+  return { name, alg: v[0] & 7, fb: v[0] >> 3 & 7, ams: v[1] >> 4 & 3, pms: v[1] & 7, op };
+}
+async function sendPatch(target, regs, name = "", extra = [0, 0, 0, 0, 0]) {   // 35 values and their sum, again until taken
+  const v = regs.concat(extra), chars = [...name.slice(0, 11)].map(c => c.charCodeAt(0) & 127);   // (extra: LFO, octave, vibrato)
+  if (state.normalise) {                 // the loudest carrier at full level, the others as they were to it
+    const car = CARRIERS[v[0] & 7], tls = [0, 1, 2, 3].filter(k => car >> k & 1).map(k => v[3 + 7 * k] & 127);
+    const lift = Math.min(...tls);
+    for (let k = 0; k < 4; k++) if (car >> k & 1) v[3 + 7 * k] = (v[3 + 7 * k] & 127) - lift;
+  }
+  v[1] |= 0xC0;                                 // both sides (the Stereo control moves it)
+  const sum = (v.reduce((a, x) => a + x, 0) + chars.reduce((a, x) => a + x, 0)) & 0x3FFF, msg = [0xBF, 0x50, target];
+  for (const c of chars) msg.push(0xBF, 0x59, c);
+  for (const x of v) msg.push(0xBF, 0x52, x & 127, 0xBF, 0x53, x >> 7);
+  msg.push(0xBF, 0x54, sum & 127, 0xBF, 0x55, sum >> 7);
+  for (let tries = 0; tries < 10; tries++) {
+    const res = song.wait("patch", () => true, 300);
+    send(msg);
+    try { if (await res) break; } catch (e) { /* lost: again */ }
+    if (tries === 9) throw new Error("the FM-1 did not take the patch");
+  }
+  for (let ch = 0; ch < 6; ch++)                 // the editor shows what the FM-1 has now
+    if (target === 6 || target === ch) { state.fm[ch].patch = regsToPatch(v, name || "FROM SONG"); state.fm[ch].pan = v[1] >> 6; }
+  if (target < 16 && extra[0] & 0x80) { state.lfo.on = 1; state.lfo.speed = extra[0] & 7; }   // (its song's LFO, now on the FM-1)
+  if (target < 16) buildEditor();
+  return v.slice(0, 30);
+}
+function homeKeys(p) {                          // the page's keyboard to where the song played this instrument
+  if (p.lo > p.hi) return;
+  state.oct = Math.max(0, Math.min(7, Math.floor(p.lo / 12) - 1));
+  buildKeys();
+}
+// ---- the drum kit: each distinct DAC hit in the songs, its rate from its timing (0x8n runs) or its stream's
+function extractDrums(b, found, file) {         // into found (the sound's bytes -> entry), merging songs
+  const ver = u32(b, 8), start = ver >= 0x150 && u32(b, 0x34) ? 0x34 + u32(b, 0x34) : 0x40;
+  const end = Math.min(b.length, u32(b, 4) + 4), blocks = [], hits = [];
+  let bank = [], t = 0, pos = 0, run = null;
+  const st = {};                                // DAC streams by id
+  const close = () => {                         // an 0x8n run ends: a hit, at the rate of its bytes
+    if (!run) return;
+    // a pause of over 10 ms is between hits: drivers (Sonic 1) play on into the next sound's bytes without a seek,
+    // or write a byte and wait for the beat
+    const all = run.times.slice(1).map((x, i) => x - run.times[i]), med = all.slice().sort((x, y) => x - y)[all.length >> 1];
+    const paused = [0, ...all.flatMap((x, i) => x > Math.max(441, 16 * med) ? [i + 1] : []), run.times.length];
+    // and where the rate changes for good: a sound running straight on into the next at its own rate
+    const W = 64, byRate = (a, b) => {
+      let best = 0, at = -1;
+      for (let c = a + W; c + W <= b; c++) {
+        const l = run.times[c] - run.times[c - W], r = run.times[c + W - 1] - run.times[c - 1];
+        const k = Math.max(l, r) / Math.max(1, Math.min(l, r));
+        if (k > best) { best = k; at = c; }
+      }
+      return best > 1.6 ? [...byRate(a, at), at, ...byRate(at, b)] : [];
+    };
+    const cuts = paused.flatMap((x, i) => i + 1 < paused.length ? [x, ...byRate(x, paused[i + 1])] : [x]);
+    for (let c = 0; c + 1 < cuts.length; c++) {
+      const times = run.times.slice(cuts[c], cuts[c + 1]);
+      if (times.length < 16) continue;
+      // the rate from the gaps between bytes, without the stalls of drivers that feed the DAC in bursts (Spinball
+      // stops ~90 samples every ~25 bytes): a stall is over 4 times the median gap and over 20 samples
+      const g = times.slice(1).map((x, i) => x - times[i]), m = g.slice().sort((x, y) => x - y)[g.length >> 1];
+      const usual = g.filter(x => x <= Math.max(20, 4 * m)), mean = usual.reduce((a, x) => a + x, 0) / usual.length;
+      const rate = mean > 0 ? 44100 / mean : 0;
+      if (rate >= 2000 && rate <= 50000) hits.push({ start: run.start + cuts[c], len: times.length, rate, t: times[0] });
+    }
+    run = null;
+  };
+  for (let p = start; p < end;) {
+    const c = b[p], k = cmdLen(b, p);
+    if (!k || c === 0x66) break;
+    if (c === 0x67 && b[p + 2] === 0) { blocks.push([bank.length, k - 7]); for (let i = p + 7; i < p + k; i++) bank.push(b[i]); }
+    else if (c === 0xE0) {                      // a seek; to where it already is, the same sound goes on (drivers
+      const to = u32(b, p + 1);                 // that feed the DAC in bursts seek before each one)
+      if (!(run && to >= pos && to <= pos + 4)) { close(); pos = to; }   // (or a few bytes on: its tail)
+    }
+    else if (c >= 0x80 && c <= 0x8F) {
+      if (!run) run = { start: pos, times: [] };
+      run.times.push(t);
+      pos++;
+      t += c & 15;
+    }
+    else if (c === 0x61) t += b[p + 1] | b[p + 2] << 8;
+    else if (c === 0x62) t += 735;
+    else if (c === 0x63) t += 882;
+    else if (c >= 0x70 && c <= 0x7F) t += (c & 15) + 1;
+    else if (c === 0x90) st[b[p + 1]] = { ours: (b[p + 2] & 0x7F) === 2, step: 1, base: 0, freq: 0 };
+    else if (c === 0x91 && st[b[p + 1]]) Object.assign(st[b[p + 1]], { step: b[p + 3] || 1, base: b[p + 4] });
+    else if (c === 0x92 && st[b[p + 1]]) st[b[p + 1]].freq = u32(b, p + 2);
+    else if (c === 0x93 && st[b[p + 1]]?.ours) {      // (a byte count only: other length modes are rare in rips)
+      const s = st[b[p + 1]], off = u32(b, p + 2), len = u32(b, p + 7);
+      if (off !== 0xFFFFFFFF && (b[p + 6] & 3) === 1 && s.freq) hits.push({ start: off + s.base, len, rate: s.freq, t });
+    } else if (c === 0x95 && st[b[p + 1]]?.ours) {
+      const s = st[b[p + 1]], id = b[p + 2] | b[p + 3] << 8;
+      if (blocks[id] && s.freq) hits.push({ start: blocks[id][0] + s.base, len: blocks[id][1], rate: s.freq, t });
+    }
+    p += k;
+  }
+  close();
+  // the same sound: hits starting within 16 bytes of each other; then split by rate, as games play one sample at
+  // several pitches (timpani); rare rates are timing noise, dropped (the commonest always stays)
+  hits.sort((x, y) => x.start - y.start);
+  const groups = [];
+  for (const h of hits) {
+    const g = groups[groups.length - 1];
+    if (g && h.start - g.start <= 16) g.hits.push(h); else groups.push({ start: h.start, hits: [h] });
+  }
+  for (const g of groups) {
+    const byRate = g.hits.slice().sort((x, y) => x.rate - y.rate), clusters = [];
+    for (const h of byRate) {
+      const c = clusters[clusters.length - 1];
+      if (c && h.rate <= c.hits[0].rate * 1.06) c.hits.push(h); else clusters.push({ hits: [h] });
+    }
+    const most = Math.max(...clusters.map(c => c.hits.length));
+    for (const c of clusters) {
+      if (c.hits.length < Math.max(2, g.hits.length * 0.05) && c.hits.length !== most) continue;
+      const len = Math.max(...c.hits.map(h => h.start - g.start + h.len)), rates = c.hits.map(h => h.rate).sort((x, y) => x - y);
+      let bytes = bank.slice(g.start, g.start + len), n = bytes.length;
+      while (n > 1 && Math.abs(bytes[n - 1] - 128) <= 1) n--;   // (the silence after it)
+      bytes = bytes.slice(0, n);
+      if (bytes.length < 64) continue;          // (a few ms: a fragment, no use as a sound)
+      const rate = Math.round(rates[rates.length >> 1]);
+      // across songs: the same bytes at the same rate (within 6%) are the same sound
+      const key = bytes.slice(0, 256).join(","), same = [...found.values()].find(e => e.key === key && Math.abs(e.rate - rate) <= e.rate * 0.06);
+      if (same) { same.uses += c.hits.length; if (bytes.length > same.bytes.length) same.bytes = bytes; continue; }
+      found.set(found.size, { key, bytes, rate, uses: c.hits.length, file, first: Math.min(...c.hits.map(h => h.t)) / 44100,
+                              spread: [rates[0], rates[rates.length - 1]] });
+    }
+  }
+  return found;
+}
+function drumList(found) {                      // the most used first; the kit's note 36 (C2) up
+  return [...found.values()].sort((x, y) => y.uses - x.uses).map((e, i) => ({ ...e, note: 36 + i }));
+}
+function kitImage(list) {                       // [n][length, rate per sound][the sounds]: as the FM-1's kit_open
+  let used = 4, keep = [];
+  for (const d of list) { if (used + 8 + d.bytes.length > KIT_MAX || keep.length >= 32) break; keep.push(d); used += 8 + d.bytes.length; }
+  const img = new Uint8Array(used), put = (a, v) => { for (let i = 0; i < 4; i++) img[a + i] = v >>> (8 * i) & 255; };
+  put(0, keep.length);
+  let at = 4 + 8 * keep.length;
+  keep.forEach((d, k) => { put(4 + 8 * k, d.bytes.length); put(8 + 8 * k, d.rate); img.set(d.bytes, at); at += d.bytes.length; });
+  return { img, n: keep.length };
+}
+
+let audio = null;
+function preview(d) {                           // the sound through the computer's speakers, at its rate
+  audio = audio || new AudioContext();
+  const buf = audio.createBuffer(1, d.bytes.length, Math.max(3000, Math.min(96000, d.rate)));
+  const ch = buf.getChannelData(0);
+  d.bytes.forEach((x, i) => ch[i] = (x - 128) / 128);
+  const src = audio.createBufferSource();
+  src.buffer = buf;
+  src.connect(audio.destination);
+  src.start();
+}
+// ---- PSG instruments: the volume shapes the songs' drivers gave PSG notes, frame by frame (60 Hz)
+const PSG_SET_MAX = 16, PSG_ENV_MAX = 64, FRAME = 735;
+function extractPsg(b, found, file) {           // into found (a list), merging songs
+  const ver = u32(b, 8), start = ver >= 0x150 && u32(b, 0x34) ? 0x34 + u32(b, 0x34) : 0x40;
+  const end = Math.min(b.length, u32(b, 4) + 4), att = [15, 15, 15, 15], per = [0, 0, 0], notes = [];
+  let latch = 0, noise = 0, t = 0;
+  const finish = ch => {                        // a note ends: its shape, relative to its loudest frame
+    const n = notes[ch];
+    notes[ch] = null;
+    if (!n || n.frames.length < 3) return;
+    const lo = Math.min(...n.frames), env = n.frames.map(x => x - lo);
+    if (env.every(x => x === 0)) return;        // (flat: a plain note, nothing to keep)
+    const kind = ch === 3 ? 0x80 | n.noise : 0;
+    // the same shape cut short is the same instrument: keep the longest
+    const same = found.find(e => e.noise === kind && e.env.slice(0, Math.min(e.env.length, env.length)).every((x, i) => x === env[i]));
+    if (same) { same.uses++; if (env.length > same.env.length) same.env = env; return; }
+    found.push({ env, noise: kind, uses: 1, file, first: n.t0 / 44100 });
+  };
+  const begin = ch => { finish(ch); notes[ch] = { t0: t, next: t, frames: [], noise: noise & 7 }; };
+  const advance = to => {                       // time moves on: each held note samples its level at each frame
+    for (let ch = 0; ch < 4; ch++) {
+      const n = notes[ch];
+      while (n && n.next < to && n.frames.length < PSG_ENV_MAX) { n.frames.push(att[ch]); n.next += FRAME; }
+    }
+    t = to;
+  };
+  for (let p = start; p < end;) {
+    const c = b[p], k = cmdLen(b, p);
+    if (!k || c === 0x66) break;
+    if (c === 0x50) {
+      const d = b[p + 1];
+      let r;
+      if (d & 0x80) { latch = r = d >> 4 & 7; }
+      else r = latch;
+      const ch = r >> 1;
+      if (r & 1) {                              // a volume: from silence a note begins; to silence it ends
+        const a = d & 15, was = att[ch];
+        att[ch] = a;
+        if (was === 15 && a < 15) begin(ch);
+        else if (a === 15) finish(ch);
+        else if (was - a >= 3) begin(ch);       // (much louder at once: the next note, played without a gap)
+      } else if (r === 6) noise = d & 7;
+      else {                                    // a tone's period: a new pitch (over half a semitone) is a new note
+        const old = per[ch];
+        per[ch] = d & 0x80 ? (per[ch] & 0x3F0) | (d & 15) : (per[ch] & 15) | (d & 0x3F) << 4;
+        if (!(d & 0x80) && att[ch] < 15 && old && per[ch] && Math.abs(1200 * Math.log2(old / per[ch])) > 50) begin(ch);
+      }
+    } else if (c === 0x61) advance(t + (b[p + 1] | b[p + 2] << 8));
+    else if (c === 0x62) advance(t + 735);
+    else if (c === 0x63) advance(t + 882);
+    else if (c >= 0x70 && c <= 0x8F) advance(t + (c < 0x80 ? (c & 15) + 1 : c & 15));
+    p += k;
+  }
+  for (let ch = 0; ch < 4; ch++) finish(ch);
+  return found;
+}
+function psgList(found) {                       // the most used first
+  return found.slice().sort((x, y) => y.uses - x.uses).map((e, i) => {
+    const fade = e.env.findIndex(x => x >= 12);  // (where it has nearly faded: its length to the ear)
+    const kind = fade > 0 ? `${Math.round(fade * 1000 / 60)}MS` : e.env[e.env.length - 1] - e.env[0] >= 3 ? "SLOWDECAY" : "HOLD";
+    return { ...e, name: `${i + 1} ` + (e.noise ? "NOISE " : "") + kind };
+  });
+}
+
+function previewPsg(e) {                        // a short phrase with the shape: two short notes, then one held
+  audio = audio || new AudioContext();
+  const notes = [[0, 0.2, 392], [0.25, 0.2, 440], [0.5, 1.2, 523]], rate = audio.sampleRate;
+  const buf = audio.createBuffer(1, Math.ceil(1.8 * rate), rate), ch = buf.getChannelData(0);
+  for (const [at, dur, hz] of notes)
+    for (let i = 0; i < dur * rate; i++) {
+      const frame = Math.min(e.env.length - 1, Math.floor(i / rate * 60)), g = 0.3 * 10 ** (-2 * e.env[frame] / 20);
+      ch[Math.floor(at * rate) + i] = g * (e.noise ? Math.random() * 2 - 1 : (Math.floor(i * hz * 2 / rate) & 1 ? 1 : -1));
+    }
+  const src = audio.createBufferSource();
+  src.buffer = buf;
+  src.connect(audio.destination);
+  src.start();
+}
+
+async function sendPsg(k, e) {                  // one PSG instrument, again until the FM-1 takes it
+  const name = e.name.slice(0, 11), chars = [...name].map(c => c.charCodeAt(0) & 127), v = [e.env.length, e.noise, ...e.env];
+  const sum = (v.reduce((a, x) => a + x, 0) + chars.reduce((a, x) => a + x, 0)) & 0x3FFF, msg = [0xBF, 0x40, k];
+  for (const c of chars) msg.push(0xBF, 0x41, c);
+  for (const x of v) msg.push(0xBF, 0x42, x & 127, 0xBF, 0x43, x >> 7);
+  msg.push(0xBF, 0x44, sum & 127, 0xBF, 0x45, sum >> 7);
+  for (let tries = 0; tries < 10; tries++) {
+    const res = song.wait("psgi", () => true, 300);
+    send(msg);
+    try { if (await res) return; } catch (err) { /* lost: again */ }
+  }
+  throw new Error("the FM-1 did not take PSG instrument " + (k + 1));
+}
+
+// ---- loading a game: every file read once; its songs listed, its sounds extracted and merged
+const ROLES = [[48, "Bass"], [60, "Low"], [72, "Mid"], [84, "High"], [128, "Very high"]];
+function role(p) {
+  if (p.lo > p.hi) return "Instrument";
+  if (p.lo === p.hi) return "Percussion";      // (played at one note only: a drum made on FM)
+  return ROLES.find(([top]) => (p.lo + p.hi) / 2 < top)[1];
+}
+async function loadFiles(files) {
+  if (!files.length) return;
+  setStatus("Reading " + files.length + " file(s)...");
+  const found = new Map(), drums = new Map(), psgs = [], songs = [];
+  const games = new Set();
+  for (const f of files) {
+    try {
+      const b = await readVgm(f), tag = gd3(b), ym = u32(b, 0x2C), secs = u32(b, 0x18) / 44100, warn = [];
+      if (tag.game) games.add(tag.game);
+      if (!ym) { songs.push({ name: tag.track || f.name, secs, sp: null, warn: ["no YM2612: not a Mega Drive song"] }); continue; }
+      const sp = vgmSplit(b);
+      if (Math.abs(ym - 7670453) > 20000) warn.push("PAL: about 1% sharp");
+      if (sp.image.length > BANK_MAX) warn.push("too many samples to play");
+      songs.push({ name: tag.track || f.name, secs, sp: sp.image.length <= BANK_MAX ? sp : null, warn, loops: sp.loopAt >= 0 });
+      extractPatches(b, found, f.name);
+      extractDrums(b, drums, f.name);
+      extractPsg(b, psgs, f.name);
+    } catch (e) { songs.push({ name: f.name, secs: 0, sp: null, warn: ["could not read it: " + e.message] }); }
+  }
+  state.songs = songs;
+  state.found = patchList(found);
+  state.drums = drumList(drums);
+  state.psgs = psgList(psgs);
+  state.kitSent = 0; state.psgSent = []; state.set = []; state.inst = -1; state.noise = -1;
+  $("gametitle").textContent = games.size === 1 ? [...games][0] : games.size ? `Songs from ${games.size} games` : files[0].name;
+  const noises = state.psgs.filter(e => e.noise).length;
+  $("gamesub").textContent = (games.size > 1 ? [...games].join(", ") + " · " : "") +
+    `${songs.length} song${songs.length === 1 ? "" : "s"} · ${state.found.length} instruments · ` +
+    `${state.drums.length} drum sounds · ${noises} noise sounds`;
+  $("gamebox").classList.remove("hide");
+  showSongs(); showSounds(); buildEditor();
+  setStatus("Press Send sounds to FM-1 to play them there.");
+}
+$("files").onchange = () => loadFiles([...$("files").files]);
+const drop = $("drop");
+drop.addEventListener("dragover", e => { e.preventDefault(); drop.classList.add("over"); });
+drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+drop.addEventListener("drop", e => { e.preventDefault(); drop.classList.remove("over"); loadFiles([...e.dataTransfer.files]); });
+
+// ---- songs
+let playing = -1, playT0 = 0;
+function showSongs() {
+  $("songcard").classList.toggle("hide", !state.songs.length);
+  $("songs").innerHTML = "";
+  state.songs.forEach((s, i) => {
+    const row = document.createElement("div"), b = document.createElement("button");
+    row.className = "songrow" + (i === playing ? " playing" : "");
+    row.innerHTML = `<div class="t"><b>${esc(s.name)}</b><span id="songtime${i}">${fmt(s.secs)}${s.loops ? " · loops" : ""}</span>` +
+      s.warn.map(w => `<span class="badge warm">${esc(w)}</span>`).join("") + `</div>`;
+    b.textContent = i === playing ? "Stop" : "Play";
+    b.className = i === playing ? "on" : "";
+    b.disabled = !s.sp;
+    b.onclick = () => i === playing ? stopSong() : playSong(i);
+    row.appendChild(b);
+    $("songs").appendChild(row);
+  });
+}
+function onPlaying(on) { if (!on && playing >= 0) { playing = -1; showSongs(); setStatus("Song ended."); } }
+function onStarved() { if (song.starved) setStatus(`The stream fell behind ${song.starved} time(s): the link may be slow.`, "err"); }
+function stopSong() { song.run++; for (let k = 0; k < 3; k++) cc16(0x75, 0); playing = -1; showSongs(); }
+async function playSong(i) {
+  const sp = state.songs[i].sp;
+  if (!sp || !state.out) { setStatus("The FM-1 is not connected.", "err"); return; }
+  if (busy) { setStatus("Wait for the sounds to finish sending.", "err"); return; }
+  const run = ++song.run;
+  playing = i; showSongs();
+  try {
+    cc16(0x75, 0);
+    setStatus("Sending the song's samples...");
+    await sendImage(sp.image, 0x70, 0x72);
+    const next = commandSource(sp, $("loop").checked);
+    song.played = 0;
+    song.starved = 0;
+    await control(0x60, 0, "heard", v => v === 0x60);
+    let fed = 0;                                // bytes handed to the link: never more than the ring has room for
+    const room = () => RING - 4096 - (fed - song.played * 1024);    // (played lags: room is never overstated)
+    link.start([], n => {
+      const k = Math.max(0, Math.min(n, room())), b = next(k);
+      fed += b.length;
+      return { b, end: b.length < k };          // (fewer than asked for: the song is over)
+    });
+    setStatus("Filling the FM-1's buffer...");
+    const START = RING - 8192;                  // most of the ring before it starts: a head start on a slow link
+    while (song.run === run && link.committed < START && !link.done()) { link.pump(); await link.tick(); }
+    setProgress(null);
+    await control(0x75, 1, "tick", () => song.playing);
+    setStatus("Playing.", "ok");
+    playT0 = performance.now();
+    let shown = 0;
+    while (song.run === run && song.playing) {
+      link.pump();
+      await link.tick().catch(() => {});
+      if (performance.now() - shown > 500) {
+        shown = performance.now();
+        const t = $("songtime" + i);
+        if (t) t.textContent = `${fmt((shown - playT0) / 1000)} / ${fmt(state.songs[i].secs)}`;
+        $("linkinfo").textContent = linkInfo().replace(/^ · /, "");
+      }
+    }
+    if (song.run === run || $("status").textContent === "Playing.") setStatus("Song ended.");
+  } catch (e) {
+    setStatus("The song stopped: " + e.message, "err");
+  }
+  setProgress(null);
+  if (song.run === run) { playing = -1; showSongs(); }
+}
+
+// ---- sending the sounds: the instruments, the PSG shapes and the drum kit, one progress bar
+const SET_MAX = 32;
+let busy = false;
+async function sendSounds() {
+  if (!state.out) { setStatus("The FM-1 is not connected.", "err"); return; }
+  if (busy) return;
+  busy = true;
+  $("sendsounds").disabled = true;
+  try {
+    if (song.playing || playing >= 0) stopSong();
+    const list = state.found.slice(0, SET_MAX), pl = state.psgs.slice(0, PSG_SET_MAX), kit = kitImage(state.drums);
+    const steps = list.length + pl.length + (kit.n ? 1 : 0);
+    let done = 0;
+    setStatus("Sending the instruments...");
+    cc16(0x5A, 0);
+    state.set = [];
+    for (let k = 0; k < list.length; k++) {
+      const v = await sendPatch(16 + k, list[k].regs, list[k].name, [list[k].lfo, list[k].oct, ...list[k].vib]);
+      state.set.push(regsToPatch(v, list[k].name));
+      setProgress(++done / steps);
+    }
+    for (let r = 0; r < 3; r++) cc16(0x5A, list.length);   // (no answer: three times)
+    cc16(0x48, 0);
+    for (let k = 0; k < pl.length; k++) { await sendPsg(k, pl[k]); setProgress(++done / steps); }
+    for (let r = 0; r < 3; r++) cc16(0x48, pl.length);
+    state.psgSent = pl;
+    if (kit.n) {
+      setStatus("Sending the drum kit...");
+      await sendImage(kit.img, 0x61, 0x63);
+      state.kitSent = kit.n;
+    }
+    setProgress(1);
+    setStatus("Keeping them on the FM-1 for next time (the sound stops for a moment)...");
+    const saved = song.wait("saved", () => true, 20000);   // (listening first: the answer can come at once)
+    await control(0x4E, 0, "heard", v => v === 0x4E);
+    const kept = await saved;
+    setStatus(`On the FM-1: ${list.length} instruments, ${kit.n} drum sounds, ${pl.length} PSG shapes.` +
+      (kept === 0 ? " Kept for the next time it starts." : ` (Not kept for the next start: error ${kept}.)`), kept === 0 ? "ok" : "err");
+    showSounds(); buildEditor(); buildParts();
+  } catch (e) {
+    setStatus("Sending stopped: " + e.message, "err");
+  }
+  busy = false;
+  $("sendsounds").disabled = false;
+  setTimeout(() => setProgress(null), 1500);
+}
+$("sendsounds").onclick = sendSounds;
+
+// ---- the sounds, as things to pick
+function showSounds() {
+  $("soundcard").classList.toggle("hide", !state.found.length && !state.drums.length);
+  $("soundsub").textContent = state.set.length ? "Sent to the FM-1. Pick a sound to play it." :
+    "Hear them on the FM-1 after Send sounds to FM-1. Drums and noise can be heard here already (Shift-tap a pad).";
+  // instruments
+  $("insts").innerHTML = "";
+  const shown = state.allInsts ? SET_MAX : 10;
+  $("moreinsts").classList.toggle("hide", state.found.length <= 10);
+  $("moreinsts").textContent = state.allInsts ? "Show the 10 most used" : `Show all ${Math.min(SET_MAX, state.found.length)}`;
+  $("moreinsts").onclick = () => { state.allInsts = !state.allInsts; showSounds(); };
+  state.found.slice(0, shown).forEach((p, i) => {
+    const t = document.createElement("button"), badges = [];
+    if (p.vib[0]) badges.push("vibrato");
+    if (p.lfo) badges.push("LFO");
+    if (p.regs.some((x, j) => j >= 2 && (j - 2) % 7 === 6 && x & 8)) badges.push("SSG-EG");
+    t.className = "tile" + (state.inst === i ? " sel" : "");
+    t.innerHTML = `<span class="role">${role(p)}</span><span class="meta">${p.lo <= p.hi ? noteName(p.lo) + " to " + noteName(p.hi) : ""}` +
+      ` · used ${p.uses}x</span><span class="meta">Program ${i + 1}${badges.map(b => ` <span class="badge">${b}</span>`).join("")}</span>`;
+    t.onclick = () => pickInstrument(i);
+    $("insts").appendChild(t);
+  });
+  // drums
+  $("drumwrap").classList.toggle("hide", !state.drums.length);
+  $("pads").innerHTML = "";
+  state.drums.slice(0, 32).forEach(d => {
+    const pad = document.createElement("div");
+    pad.className = "pad";
+    pad.innerHTML = `<b>${noteName(d.note)}</b><span>${Math.round(1000 * d.bytes.length / d.rate)} ms</span>`;
+    pad.title = `${d.rate} Hz, used ${d.uses}x (MIDI channel 10, note ${d.note})`;
+    pad.onpointerdown = e => {
+      pad.classList.add("hit"); setTimeout(() => pad.classList.remove("hit"), 120);
+      if (e.shiftKey || !state.kitSent) { preview(d); if (!state.kitSent && !e.shiftKey) setStatus("Playing it here: send the sounds to hear it on the FM-1."); return; }
+      send([0x99, d.note, state.vel]); send([0x89, d.note, 0]);
+    };
+    $("pads").appendChild(pad);
+  });
+  // noise shapes (the ones that are percussion); square-wave shapes go to Advanced
+  const noises = state.psgs.map((e, k) => ({ e, k })).filter(x => x.e.noise);
+  $("noisewrap").classList.toggle("hide", !noises.length);
+  $("noises").innerHTML = "";
+  noises.forEach(({ e, k }) => {
+    const t = document.createElement("button"), fall = e.env[Math.min(5, e.env.length - 1)];   // (its drop over 1/10 s)
+    const kind = fall >= 6 ? "Short tick" : fall >= 3 ? "Hi-hat" : fall >= 1 ? "Shaker" : "Long noise";
+    t.className = "tile" + (state.noise === k ? " sel" : "");
+    t.innerHTML = `<span class="role">${kind}</span>` +
+      `<span class="meta">${e.noise & 4 ? "white" : "periodic"} noise · used ${e.uses}x</span>`;
+    const hear = document.createElement("span");
+    hear.className = "badge hear";
+    hear.textContent = "hear it here";
+    hear.onclick = ev => { ev.stopPropagation(); previewPsg(e); };
+    t.appendChild(hear);
+    t.onclick = () => pickNoise(k);
+    $("noises").appendChild(t);
+  });
+  // square-wave shapes (Advanced)
+  const squares = state.psgs.map((e, k) => ({ e, k })).filter(x => !x.e.noise);
+  $("squarewrap").classList.toggle("hide", !squares.length);
+  $("squares").innerHTML = "<tr><th>Shape</th><th>Volume per frame (2 dB steps)</th><th>Used</th><th></th></tr>";
+  squares.forEach(({ e, k }) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${esc(e.name)}</td><td class="alg">${e.env.slice(0, 24).join(" ")}${e.env.length > 24 ? " ..." : ""}</td><td>${e.uses}x</td><td></td>`;
+    const hear = document.createElement("button"), use = document.createElement("button");
+    hear.className = use.className = "small";
+    hear.textContent = "Hear here";
+    hear.onclick = () => previewPsg(e);
+    use.textContent = "Use on Square wave";
+    use.onclick = () => {
+      if (!state.psgSent.includes(e)) { setStatus("Send the sounds to the FM-1 first.", "err"); return; }
+      for (const ch of [6, 7, 8]) send([0xC0 | ch, k]);
+      setPart("square");
+      setStatus(`${e.name} on the Square wave part.`, "ok");
+    };
+    tr.lastChild.append(hear, " ", use);
+    $("squares").appendChild(tr);
+  });
+}
+async function pickInstrument(i) {
+  const p = state.found[i];
+  state.inst = i;
+  showSounds();
+  setPart("inst");
+  try {
+    await sendPatch(6, p.regs, p.name, [p.lfo, p.oct, ...p.vib]);   // (all six channels, exactly: the FM-1's POLY too)
+    homeKeys(p);
+    setStatus(`${role(p)} (program ${i + 1}) on the Instrument part and the FM-1's POLY.`, "ok");
+  } catch (e) { setStatus(e.message, "err"); }
+}
+function pickNoise(k) {
+  if (!state.psgSent.includes(state.psgs[k])) { setStatus("Send the sounds to the FM-1 first.", "err"); return; }
+  state.noise = k;
+  send([0xC0 | 10, k]);                         // (MIDI channel 11: the noise, kit or not)
+  setPart("hats");
+  showSounds();
+  setStatus("Noise sound picked: play the Hi-hats part.", "ok");
+}
+
+// ---- the patch editor (Advanced)
+// ---- the FM patch editor (the panel's channel)
+function slider(label, value, max, onInput) {
+  const l = document.createElement("label"); l.className = "ctl";
+  const o = document.createElement("output"); o.textContent = value;
+  const r = document.createElement("input"); r.type = "range"; r.min = 0; r.max = max; r.value = value;
+  r.oninput = () => { o.textContent = r.value; onInput(+r.value); };
+  l.append(label, o, r);
+  return l;
+}
+function select(label, opts, value, onChange) {
+  const l = document.createElement("label"); l.className = "ctl";
+  const s = document.createElement("select"); s.style.gridColumn = "1 / 3";
+  opts.forEach((t, i) => s.add(new Option(t, i)));
+  s.value = value; s.onchange = () => onChange(+s.value);
+  l.append(label, document.createElement("span"), s);
+  return l;
+}
+function sendOp(ch, k, p, v) {
+  cc(ch, p.cc + k, p.invert ? 127 - v : scaled(v, p.max));
+}
+function sendAll(ch) {
+  const f = state.fm[ch], pt = f.patch;
+  cc(ch, 14, scaled(pt.alg, 7)); cc(ch, 15, scaled(pt.fb, 7));
+  cc(ch, 75, scaled(pt.pms, 7)); cc(ch, 76, scaled(pt.ams, 3)); cc(ch, 77, scaled(f.pan, 3));
+  pt.op.forEach((o, k) => OPPARAMS.forEach(p => sendOp(ch, k, p, o[p.k])));
+}
+function buildEditor() {
+  const ch = state.edCh;
+  const f = state.fm[ch], pt = f.patch;
+  const ps = $("preset"), all = state.set || [];   // as the FM-1's programs: the sound set
+  ps.innerHTML = "";
+  if (!all.length) ps.add(new Option("No sound set on the FM-1 yet", 0));
+  all.forEach((p, i) => ps.add(new Option((i + 1) + "  " + p.name, i)));
+  ps.value = Math.min(f.preset, all.length - 1);
+  ps.onchange = () => {
+    f.preset = +ps.value; f.patch = structuredClone(all[f.preset]);
+    send([0xC0 | ch, f.preset]);
+    const src = (state.found || [])[f.preset];  // (a set instrument: the keys to its range)
+    if (f.preset < (state.set || []).length && src) homeKeys(src);
+    buildEditor();
+  };
+  $("patchsend").onclick = () => sendAll(ch);
+  const desc = () => {
+    const c = CARRIERS[pt.alg];
+    $("algdesc").textContent = "Algorithm " + pt.alg + ":  " + ALGS[pt.alg] + "   carriers " +
+      [0, 1, 2, 3].filter(k => c >> k & 1).map(k => "O" + (k + 1)).join(" ");
+  };
+  desc();
+
+  const g = $("global"); g.innerHTML = "";
+  g.append(
+    slider("Algorithm", pt.alg, 7, v => { pt.alg = v; cc(ch, 14, scaled(v, 7)); desc(); markCarriers(); }),
+    slider("Feedback", pt.fb, 7, v => { pt.fb = v; cc(ch, 15, scaled(v, 7)); }),
+    slider("Vibrato (PMS)", pt.pms, 7, v => { pt.pms = v; cc(ch, 75, scaled(v, 7)); }),
+    slider("Tremolo (AMS)", pt.ams, 3, v => { pt.ams = v; cc(ch, 76, scaled(v, 3)); }),
+    select("Stereo", ["off", "right", "left", "both"], f.pan, v => { f.pan = v; cc(ch, 77, scaled(v, 3)); }),
+    select("LFO (all FM)", ["off", "on"], state.lfo.on, v => { state.lfo.on = v; cc(ch, 74, scaled(v, 1)); }),
+    slider("LFO speed (all FM)", state.lfo.speed, 7, v => { state.lfo.speed = v; cc(ch, 1, scaled(v, 7)); }),
+  );
+
+  const ops = $("ops"); ops.innerHTML = "";
+  pt.op.forEach((o, k) => {
+    const box = document.createElement("div"); box.className = "op"; box.dataset.k = k;
+    const h = document.createElement("h3"); h.innerHTML = `Operator ${k + 1} <span></span>`;
+    box.appendChild(h);
+    OPPARAMS.forEach(p => box.appendChild(slider(p.name, o[p.k], p.max, v => { o[p.k] = v; sendOp(ch, k, p, v); })));
+    ops.appendChild(box);
+  });
+  markCarriers();
+}
+function markCarriers() {
+  const pt = state.fm[state.edCh]?.patch; if (!pt) return;
+  document.querySelectorAll(".op").forEach(box => {
+    box.querySelector("h3 span").textContent = CARRIERS[pt.alg] >> +box.dataset.k & 1 ? "carrier" : "modulator";
+  });
+}
+function buildEdChans() {
+  $("edchans").innerHTML = "";
+  for (let i = 0; i < 6; i++) {
+    const b = document.createElement("button");
+    b.textContent = "FM " + (i + 1);
+    b.className = "small" + (i === state.edCh ? " on" : "");
+    b.onclick = () => { state.edCh = i; buildEdChans(); buildEditor(); };
+    $("edchans").appendChild(b);
+  }
+}
+
+function renumber() {                          // the step badges: 1, 2, 3 over the sections shown
+  let n = 0;
+  for (const st of document.querySelectorAll(".card .step")) if (!st.closest(".card").classList.contains("hide")) st.textContent = ++n;
+}
+new MutationObserver(renumber).observe(document.querySelector("main"), { subtree: true, attributes: true, attributeFilter: ["class"] });
+buildParts(); buildKeys(); buildEdChans(); buildEditor(); renumber(); startMidi();
+</script>
+</body>
+</html>

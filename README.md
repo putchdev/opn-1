@@ -2,9 +2,9 @@
 
 <p align="center"><b>The Mega Drive / Genesis sound chips as a synth, on the M-VAVE FM-1.</b></p>
 
-<p align="center"><a href="https://opn-1-preview.putch.co.uk/"><b>Open the web app</b></a> (Chrome or Edge; 2.0 preview)</p>
+<p align="center"><a href="https://opn-1.putch.co.uk/"><b>Open the web app</b></a> (Chrome or Edge)</p>
 
-<p align="center"><a href="https://opn-1-preview.putch.co.uk/sample.mp3">Hear a sample</a>: a new song recorded from an FM-1 running OPN-1, with instruments from Sonic the Hedgehog</p>
+<p align="center"><a href="https://opn-1.putch.co.uk/sample.mp3">Hear a sample</a>: a new song recorded from an FM-1 running OPN-1, with instruments from Sonic the Hedgehog</p>
 
 OPN-1 is open-source firmware for the M-VAVE FM-1 keyboard. It runs accurate recreations of the console's
 two sound chips, the Yamaha YM2612 (six FM channels plus a sample DAC) and the SN76489 PSG (three square waves and
@@ -21,9 +21,9 @@ back exactly, with a live view of every channel on the device's screen.
   <img src="docs/screens/fm1-seq.png" width="240" alt="SEQ: every channel's note, level and patch">
 </p>
 
-> **Status:** 2.0 is in preview on the `opm-synth` branch. Some of it has not been tested on a real FM-1 yet, and
-> installing it is at your own risk: see the [disclaimer](#disclaimer). The released 1.0 is on
-> [the releases page](https://github.com/putchdev/opn-1/releases).
+> **Still on OPN-1 1.x?** The web app above needs 2.0. The 1.0 page stays at
+> <https://opn-1.putch.co.uk/v1/>, and 1.0.0 is on [the releases page](https://github.com/putchdev/opn-1/releases).
+> Installing any version is at your own risk: see the [disclaimer](#disclaimer).
 
 ## Features
 
@@ -74,7 +74,7 @@ back exactly, with a live view of every channel on the device's screen.
 ## Getting started
 
 1. **Install the firmware** on the FM-1, as in [Installing the firmware](#installing-the-firmware) below.
-2. **Open the web app** in Chrome or Edge: **<https://opn-1-preview.putch.co.uk/>**. To run it locally instead
+2. **Open the web app** in Chrome or Edge: **<https://opn-1.putch.co.uk/>**. To run it locally instead
    (Web MIDI needs https or localhost):
 
    ```sh

@@ -296,6 +296,7 @@ table.parts select { min-height: 38px; width: 100%; }
         <li>Turn PRESETS on the FM-1 to step through them, and play. The Editor changes the selected patch.</li>
         <li>To play several patches at once, see Setup: Layer stacks them on the keys, Split gives each MIDI channel its own. Until then the FM-1 plays one patch, on MIDI channels 1 to 6 and 12 to 15.</li>
       </ol>
+      <p>This page is for OPN-1 2.0. For an FM-1 running OPN-1 1.x, use <a href="v1/">the 1.0 page</a>.</p>
       <p class="sub">Installing OPN-1 is done at your own risk. It comes with no warranty, and its authors accept no responsibility for damaged or unusable devices.</p>
       <h3>MIDI port</h3>
       <label class="field" style="max-width:360px">MIDI OUTPUT <select id="out"><option>none</option></select></label>
@@ -1070,12 +1071,24 @@ async function readLib() {
   setStatus(`The FM-1 holds ${n} patch${n === 1 ? "" : "es"}.`, "ok");
 }
 async function readAll() {
+  let silent = false;
   await job("Reading", async () => {          // (the library even if the parts did not come)
     let err = null;
     await readParts().catch(e => { err = e; });
-    await readLib();
+    await readLib().catch(e => { silent = !!err; throw e; });
     if (err) throw err;
   });
+  if (silent) oldFirmware();                    // (OPN-1 1.x answers neither)
+}
+function oldFirmware() {
+  $("donetitle").textContent = "OPN-1 1.x?";
+  $("donetext").className = "";
+  $("donetext").replaceChildren("The FM-1 did not answer this page, which needs OPN-1 2.0. If it runs OPN-1 1.x, use ",
+    el("a", { href: "v1/" }, "the 1.0 page"), ", or install 2.0 from the ",
+    el("a", { href: "https://github.com/putchdev/opn-1/releases/latest", target: "_blank", rel: "noopener" }, "releases"), ".");
+  $("doneprog").classList.add("hide");
+  $("doneok").disabled = false;
+  if (!$("done").open) $("done").showModal();
 }
 
 // ---- .opm (VOPM) files: 2612.org's packs write detune centred (3 = none, 0..6), VOPM's own 0..7 as the chip

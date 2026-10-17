@@ -49,6 +49,24 @@ back exactly, with a live view of every channel on the device's screen.
 - **MIDI over USB or the TRS jack.** By default the FM patch plays on channels 1 to 6 and 12 to 15, the square
   waves on 7 to 9, the drums on 10 and noise on 11. GenMDM's layout and control changes are a setting away.
 
+## New in 2.0
+
+1.0 played the last set of sounds the page sent from a game's music. 2.0 makes the FM-1 a patch-based synth:
+
+- **A library instead of one sound set.** 128 patches in 4 banks of 32, picked with PRESETS or a program change.
+  1.0 kept only the last game's sounds; on upgrading, they move into bank 1.
+- **`.opm` patches as well as VGM.** Import VOPM banks (such as the 2612.org packs) into any bank and slot, and
+  export a bank back to `.opm`.
+- **Single, Layer and Split** replace 1.0's POLY and one-channel modes: one patch, up to six stacked (with delay and
+  release triggers), or one per MIDI channel.
+- **A full patch editor.** 1.0's editor set one FM channel's CCs; 2.0's draws every operator's envelope, edits a
+  library patch and saves it back to its slot.
+- **Redrawn FM-1 screens:** all four envelopes, one operator at a time, the setup, and a cleaner SEQ.
+- **Songs as MIDI:** play a VGM song live in GenMDM mode, or save it as a `.mid` for a DAW.
+- **A normal MIDI layout by default:** the patch on channels 1 to 6 and 12 to 15. GenMDM's layout is still a setting.
+- **The page checks the firmware:** it works only with OPN-1 2.x. For 1.x, the 1.0 page stays at
+  <https://opn-1.putch.co.uk/v1/>.
+
 ## The FM-1's screens
 
 | | | |

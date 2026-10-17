@@ -249,7 +249,7 @@ table.parts select { min-height: 38px; width: 100%; }
         <h2 class="chrome">Setup</h2>
         <span class="row" style="gap:12px;align-items:flex-end">
           <button class="btn" id="readparts">Read FM-1</button>
-          <button class="btn go" id="keepparts">Keep</button>
+          <button class="btn go" id="keepparts" title="Keeps the setup after the FM-1 is switched off, as its SAVE button does">Save</button>
         </span>
       </div>
       <div class="setups" id="setups"></div>
@@ -1511,7 +1511,7 @@ function renderParts() {
   const cards = $("setups");
   cards.innerHTML = "";
   for (const [k, name, what] of SETUPS)
-    cards.append(el("button", { class: k === kind ? "on" : "", onclick: () => k !== kind && job("Setting", async () => { await useSetup(k); renderParts(); setStatus(`${name}. Keep to make it stick.`, "ok"); }) },
+    cards.append(el("button", { class: k === kind ? "on" : "", onclick: () => k !== kind && job("Setting", async () => { await useSetup(k); renderParts(); setStatus(`${name}. Save to keep it after power off.`, "ok"); }) },
       el("b", {}, name), el("span", {}, what)));
   const body = $("setupbody");
   body.innerHTML = "";
@@ -1591,7 +1591,7 @@ $("mode").onchange = () => job("Setting", async () => {
              "Panel: any MIDI channel plays the FM-1's selected part."][m], "ok");
 });
 $("readparts").onclick = () => shownJob("Reading", async () => { setStatus("Reading the setup..."); await readParts(); setStatus("Setup read.", "ok"); });
-$("keepparts").onclick = () => shownJob("Keeping", async () => { const r = await keep(); setStatus(r === 0 ? "Setup kept." : "Not kept: error " + r, r === 0 ? "ok" : "err"); });
+$("keepparts").onclick = () => shownJob("Saving", async () => { const r = await keep(); setStatus(r === 0 ? "Setup saved." : "Not saved: error " + r, r === 0 ? "ok" : "err"); });
 
 // ---- the Drums tab: the kit and the PSG shapes found in the songs
 function renderDrums() {

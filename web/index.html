@@ -48,6 +48,11 @@ nav button.on { color: #fff; font-weight: 800; border-bottom-color: var(--acc); 
 #status.ok { color: var(--good); } #status.err { color: var(--pink); }
 .progress { width: 220px; height: 8px; background: var(--soft); border: 1px solid var(--line); }
 .progress div { height: 100%; width: 0; background: var(--acc); transition: width .15s; }
+dialog#done { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-top: 3px solid var(--acc); border-radius: 4px;
+  padding: 22px 24px; width: min(440px, calc(100vw - 32px)); }
+dialog#done::backdrop { background: rgba(0, 0, 0, .65); }
+#donetext { font: 14px var(--mono); line-height: 1.5; margin: 14px 0 18px; }
+#donetext.ok { color: var(--good); } #donetext.err { color: var(--pink); }
 main { max-width: 1376px; margin: 0 auto; padding: 18px 28px 48px; }
 .tab { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
 .panel { background: var(--panel); border: 1px solid var(--line); border-top: 3px solid var(--acc); border-radius: 4px; padding: 22px 24px;
@@ -156,6 +161,12 @@ table.parts select { min-height: 38px; width: 100%; }
   <div id="status"></div>
   <div class="progress hide" id="prog"><div id="progbar"></div></div>
 </div>
+<dialog id="done" aria-labelledby="donetitle">
+  <h2 class="chrome" id="donetitle"></h2>
+  <p id="donetext"></p>
+  <div class="progress" id="doneprog" style="width:100%"><div id="donebar"></div></div>
+  <div class="row" style="justify-content:flex-end;margin-top:18px"><button class="btn go" id="doneok">OK</button></div>
+</dialog>
 <main>
   <!-- LIBRARY -->
   <section class="tab" id="tab-library">
@@ -178,7 +189,7 @@ table.parts select { min-height: 38px; width: 100%; }
         <div class="list" id="imports"></div>
         <div id="extras" style="display:flex;flex-direction:column;gap:10px"></div>
         <label style="display:flex;gap:8px;align-items:center;font-size:13px;color:var(--dim)"><input type="checkbox" id="normalise" checked style="flex:none;width:18px;height:18px;accent-color:var(--acc)"> Raise each patch to full level (its loudest carrier at maximum)</label>
-        <div class="row" style="padding-top:12px;border-top:1px solid var(--line)">
+        <div class="row" style="padding:12px 0;border-top:1px solid var(--line);position:sticky;bottom:0;background:var(--panel);z-index:1">
           <label class="field">BANK <select id="tbank"><option value="0">Bank 1</option><option value="1">Bank 2</option><option value="2">Bank 3</option><option value="3">Bank 4</option></select></label>
           <label class="field">FROM SLOT <select id="tslot"></select></label>
           <div class="grow sub" id="tnote" style="min-width:140px"></div>
@@ -329,11 +340,31 @@ const state = {
 };
 const $ = id => document.getElementById(id);
 function send(bytes) { if (state.out) state.out.send(bytes); }
-function setStatus(t, cls) { const s = $("status"); s.textContent = t; s.className = cls || ""; }
+function setStatus(t, cls) {
+  const s = $("status"); s.textContent = t; s.className = cls || "";
+  if ($("done").open) { $("donetext").textContent = t; $("donetext").className = cls || ""; }
+}
 function setProgress(f) {                       // 0..1, or null to hide
   $("prog").classList.toggle("hide", f === null);
-  if (f !== null) $("progbar").style.width = (100 * Math.max(0, Math.min(1, f))).toFixed(1) + "%";
+  if (f !== null) $("progbar").style.width = $("donebar").style.width = (100 * Math.max(0, Math.min(1, f))).toFixed(1) + "%";
 }
+// a transfer in a popup, so its outcome is seen wherever the page is scrolled to
+async function shownJob(what, fn) {
+  const d = $("done");
+  $("donetitle").textContent = what + "...";
+  $("donetext").textContent = ""; $("donetext").className = "";
+  $("donebar").style.width = "0";
+  $("doneprog").classList.remove("hide");
+  $("doneok").disabled = true;
+  if (!d.open) d.showModal();
+  await job(what, fn);
+  $("donetitle").textContent = $("status").className === "err" ? "Not done" : "Done";
+  $("doneprog").classList.add("hide");
+  $("doneok").disabled = false;
+  $("doneok").focus();
+}
+$("doneok").onclick = () => $("done").close();
+$("done").oncancel = e => { if ($("doneok").disabled) e.preventDefault(); };   // (Esc only once it has finished)
 const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 const NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -1560,11 +1591,11 @@ async function sendShapes() {
   for (let r = 0; r < 3; r++) cc16(0x48, pl.length);
   return pl.length;
 }
-$("sendkit").onclick = () => job("Sending", async () => { const n = await sendKit(); const r = await keep(); setStatus(`${n} drum sounds on the FM-1` + (r === 0 ? ", kept." : ` (not kept: error ${r}).`), r === 0 ? "ok" : "err"); });
-$("sendpsg").onclick = () => job("Sending", async () => { const n = await sendShapes(); const r = await keep(); setStatus(`${n} shapes on the FM-1` + (r === 0 ? ", kept." : ` (not kept: error ${r}).`), r === 0 ? "ok" : "err"); });
+$("sendkit").onclick = () => shownJob("Sending", async () => { const n = await sendKit(); const r = await keep(); setStatus(`${n} drum sounds on the FM-1` + (r === 0 ? ", kept." : ` (not kept: error ${r}).`), r === 0 ? "ok" : "err"); });
+$("sendpsg").onclick = () => shownJob("Sending", async () => { const n = await sendShapes(); const r = await keep(); setStatus(`${n} shapes on the FM-1` + (r === 0 ? ", kept." : ` (not kept: error ${r}).`), r === 0 ? "ok" : "err"); });
 // the ticked patches into the target slots, and the songs' shapes and kit if ticked (the link test drives this too)
 async function sendSounds() {
-  await job("Sending", async () => {
+  await shownJob("Sending", async () => {
     const list = state.imports.filter(p => p.on), slots = targetSlots(), norm = $("normalise").checked;
     for (let i = 0; i < slots.length; i++) {
       setStatus(`Sending ${list[i].name} to ${slotName(slots[i])}...`);

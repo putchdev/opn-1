@@ -261,7 +261,7 @@ table.parts select { min-height: 38px; width: 100%; }
     <div class="panel" style="flex: 1 1 100%">
       <div class="phead"><h2 class="chrome">Songs</h2>
         <label class="row" style="gap:6px;align-items:center;font-size:14px;color:var(--dim)"><input type="checkbox" id="loop" checked> Loop</label></div>
-      <p class="sub">Load VGM files in the Library. A song streams to the FM-1 while it plays, so keep this tab open.</p>
+      <p class="sub">Load VGM files in the Library. Keep this tab open while a song plays. <b>Play</b> streams the song and sounds exactly as the console did. <b>Play MIDI</b> turns it into MIDI notes and patch CCs and plays it in GenMDM mode, close but not exact (send the kit from Drums for its drums). <b>Save .mid</b> saves that MIDI, in GenMDM's layout, for a DAW.</p>
       <div class="list" id="songs" style="max-height:none"></div>
       <span class="sub mono" id="linkinfo"></span>
     </div>
@@ -774,8 +774,13 @@ function extractDrums(b, found, file) {         // into found (the sound's bytes
       const rate = Math.round(rates[rates.length >> 1]);
       // across songs: the same bytes at the same rate (within 6%) are the same sound
       const key = bytes.slice(0, 256).join(","), same = [...found.values()].find(e => e.key === key && Math.abs(e.rate - rate) <= e.rate * 0.06);
-      if (same) { same.uses += c.hits.length; if (bytes.length > same.bytes.length) same.bytes = bytes; continue; }
-      found.set(found.size, { key, bytes, rate, uses: c.hits.length, file, first: Math.min(...c.hits.map(h => h.t)) / 44100,
+      if (same) {
+        same.uses += c.hits.length;
+        if (bytes.length > same.bytes.length) same.bytes = bytes;
+        (same.at[file] ||= []).push(g.start);
+        continue;
+      }
+      found.set(found.size, { key, bytes, rate, uses: c.hits.length, file, at: { [file]: [g.start] }, first: Math.min(...c.hits.map(h => h.t)) / 44100,
                               spread: [rates[0], rates[rates.length - 1]] });
     }
   }
@@ -1081,7 +1086,7 @@ async function loadFiles(files) {
       const sp = vgmSplit(b);
       if (Math.abs(ym - 7670453) > 20000) warn.push("PAL: about 1% sharp");
       if (sp.image.length > BANK_MAX) warn.push("too many samples to play");
-      songs.push({ name: tag.track || f.name, secs, sp: sp.image.length <= BANK_MAX ? sp : null, warn, loops: sp.loopAt >= 0, game: tag.game });
+      songs.push({ name: tag.track || f.name, secs, sp: sp.image.length <= BANK_MAX ? sp : null, mid: sp, file: f.name, warn, loops: sp.loopAt >= 0, game: tag.game });
       extractPatches(b, found, f.name);
       extractDrums(b, drums, f.name);
       extractPsg(b, psgs, f.name);
@@ -1462,6 +1467,7 @@ async function sendKit() {
   const kit = kitImage(state.drums);
   setStatus("Sending the drum kit...");
   await sendImage(kit.img, 0x61, 0x63);
+  state.kitSent = true;
   return kit.n;
 }
 async function sendShapes() {
@@ -1492,10 +1498,15 @@ function renderSongs() {
   list.innerHTML = "";
   if (!state.songs.length) list.append(el("p", { class: "sub" }, "No songs loaded."));
   state.songs.forEach((s, i) => {
-    const b = el("button", { class: "btn" + (i === playing ? " on" : ""), disabled: !s.sp, onclick: () => i === playing ? stopSong() : playSong(i) }, i === playing ? "Stop" : "Play");
-    list.append(el("div", { class: "songrow" + (i === playing ? " playing" : "") },
+    const b = el("button", { class: "btn" + (i === playing ? " on" : ""), disabled: !s.sp, title: "Streams the song: exactly as the console played it",
+      onclick: () => i === playing ? stopSong() : playSong(i) }, i === playing ? "Stop" : "Play");
+    const m = el("button", { class: "btn" + (i === midiPlaying ? " on" : ""), disabled: !s.mid, title: "Plays it as MIDI in GenMDM mode, with the patches as CCs",
+      onclick: () => i === midiPlaying ? stopMidi() : playMidi(i) }, i === midiPlaying ? "Stop" : "Play MIDI");
+    const sv = el("button", { class: "btn", disabled: !s.mid, title: "A MIDI file in GenMDM's layout", onclick: () => saveMidi(i) }, "Save .mid");
+    const playingNow = i === playing || i === midiPlaying;
+    list.append(el("div", { class: "songrow" + (playingNow ? " playing" : "") },
       el("div", { class: "t" }, el("b", {}, s.name), el("span", { class: "sub", id: "songtime" + i }, `${fmt(s.secs)}${s.loops ? " · loops" : ""}`),
-        s.warn.map(w => el("span", { class: "warnb" }, w))), b));
+        s.warn.map(w => el("span", { class: "warnb" }, w))), el("span", { class: "row", style: "gap:8px" }, b, m, sv)));
   });
 }
 function onPlaying(on) { if (!on && playing >= 0) { playing = -1; renderSongs(); setStatus("Song ended."); } }
@@ -1505,6 +1516,7 @@ async function playSong(i) {
   const sp = state.songs[i].sp;
   if (!sp || !state.out) { setStatus("The FM-1 is not connected.", "err"); return; }
   if (busy) { setStatus("Wait for the last transfer to finish.", "err"); return; }
+  if (midiPlaying >= 0) stopMidi();
   const run = ++song.run;
   playing = i; renderSongs();
   try {
@@ -1547,6 +1559,246 @@ async function playSong(i) {
   setProgress(null);
   if (song.run === run) { playing = -1; renderSongs(); }
 }
+
+// ---- a song as MIDI in GenMDM's layout: FM 1 to 6 on channels 1 to 6, the PSG tones on 7 to 9, the kit on 10,
+// the noise on 11. The chips' registers are followed through the song and each change becomes what GenMDM (and
+// OPN-1's GenMDM mode) understands: patch settings as CCs when they change, key-ons as notes, pitch moves as bends,
+// PSG volume as CC 7. Not exact, as the stream is: no channel 3 special mode or per-operator key-ons, and the DAC
+// only as the kit's hits.
+const BEND_CC = 86;                             // CC 81's value for 12 semitones (the FM-1 takes v * 18 >> 7)
+const NOISE_NOTE = [0, 2, 4, 9, 5, 6, 7, 11];   // the noise mode a note's name picks (the FM-1's NOISE_MODE)
+function* vgmMidi(sp, hitAt, loops) {           // [t (samples), status, d1, d2], in time order
+  const c = sp.cmds, regs = new Uint8Array(0x200), sent = Array.from({ length: 16 }, () => new Int16Array(128).fill(-1));
+  const fmNote = Array(6).fill(-1), fmBend = Array(6).fill(0), keyed = Array(6).fill(0), later = [];
+  const att = [15, 15, 15, 15], per = [0, 0, 0], psgNote = Array(4).fill(-1), psgBend = [0, 0, 0], psgVol = [0, 0, 0, 0];
+  const blocks = [];                            // the PCM blocks' offsets (0x95 starts one)
+  for (let i = 0, n = u32(sp.image, 0), at = 0; i < n; i++) { blocks.push(at); at += u32(sp.image, 4 + 4 * i); }
+  let t = 0, noise = 0, latch = 0, typ = 0, dac = 0, pos = 0, lastDac = -1e9, runFrom = -1;
+  const out = [];
+  const ev = (st, a, b) => out.push([t, st, a, b]);
+  const cc = (ch, n, v) => { if (sent[ch][n] !== v) { sent[ch][n] = v; ev(0xB0 | ch, n, v); } };
+  const bend = (ch, b) => { const v = Math.max(0, Math.min(16383, 8192 + b)); ev(0xE0 | ch, v & 127, v >> 7); };
+  const cents = f => 6900 + 1200 * Math.log2(f / 440);
+  const place = x => {                          // a pitch as a note and the bend from it
+    const n = Math.max(0, Math.min(127, Math.round(x / 100)));
+    return [n, Math.round((x - 100 * n) / (100 * 12) * 8192)];
+  };
+  const fmFreq = ch => {
+    const b = (ch >= 3 ? 0x100 : 0) | ch % 3, f = (regs[b | 0xA4] & 7) << 8 | regs[b | 0xA0];
+    return f ? f * 53267.03 * 2 ** (regs[b | 0xA4] >> 3 & 7) / 2 ** 21 : 0;
+  };
+  const fmOn = ch => {
+    if (fmNote[ch] >= 0) { ev(0x80 | ch, fmNote[ch], 0); fmNote[ch] = -1; }
+    const f = fmFreq(ch);
+    if (!f || (ch === 5 && dac)) return;
+    const [n, b] = place(cents(f));
+    if (b !== fmBend[ch]) { bend(ch, b); fmBend[ch] = b; }
+    ev(0x90 | ch, n, 127);
+    fmNote[ch] = n;
+  };
+  const fmOff = ch => { if (fmNote[ch] >= 0) { ev(0x80 | ch, fmNote[ch], 0); fmNote[ch] = -1; } };
+  const fmMove = ch => {                        // a held note's new pitch: a bend, or the note again if too far
+    if (fmNote[ch] < 0) return;
+    const f = fmFreq(ch);
+    if (!f) return;
+    const b = Math.round((cents(f) - 100 * fmNote[ch]) / 1200 * 8192);
+    if (Math.abs(b) > 8191) { fmOn(ch); return; }
+    if (b !== fmBend[ch]) { bend(ch, b); fmBend[ch] = b; }
+  };
+  const fmWrite = (part, a, d) => {
+    regs[part << 8 | a] = d;
+    if (!part && a === 0x22) { cc(0, 1, (d & 7) << 4); cc(0, 74, (d >> 3 & 1) << 6); return; }
+    if (!part && a === 0x2B) { dac = d >> 7; if (dac) fmOff(5); return; }
+    if (!part && a === 0x28) {
+      if ((d & 3) === 3) return;
+      const ch = (d & 3) + 3 * (d >> 2 & 1), was = keyed[ch];
+      keyed[ch] = d >> 4;
+      if (!keyed[ch]) fmOff(ch);
+      else if (!was) fmOn(ch);                  // (keyed again while on: the chip does not restart it)
+      return;
+    }
+    if ((a & 3) === 3 || a < 0x30) return;
+    const ch = (a & 3) + 3 * part;
+    if (a >= 0xA0 && a <= 0xA2) { fmMove(ch); return; }
+    if (a >= 0xB0 && a <= 0xB2) { cc(ch, 14, (d & 7) << 4); cc(ch, 15, (d >> 3 & 7) << 4); return; }
+    if (a >= 0xB4 && a <= 0xB6) { cc(ch, 77, (d >> 6 & 3) << 5); cc(ch, 76, (d >> 4 & 3) << 5); cc(ch, 75, (d & 7) << 4); return; }
+    if (a > 0x9F) return;
+    const k = OPOFF.indexOf(a & 0x0C);
+    switch (a >> 4) {
+    case 3: cc(ch, 24 + k, (d >> 4 & 7) << 4); cc(ch, 20 + k, (d & 15) << 3); break;
+    case 4: cc(ch, 16 + k, 127 - (d & 127)); break;
+    case 5: cc(ch, 39 + k, (d >> 6) << 5); cc(ch, 43 + k, (d & 31) << 2); break;
+    case 6: cc(ch, 70 + k, (d >> 7) << 6); cc(ch, 47 + k, (d & 31) << 2); break;
+    case 7: cc(ch, 51 + k, (d & 31) << 2); break;
+    case 8: cc(ch, 55 + k, (d >> 4) << 3); cc(ch, 59 + k, (d & 15) << 3); break;
+    case 9: cc(ch, 90 + k, (d & 15) << 3); break;
+    }
+  };
+  const psgSync = k => {                        // tone k (0-2) or the noise (3): its note, pitch and volume now
+    const ch = k < 3 ? 6 + k : 10;
+    const ref = k === 2 && att[3] < 15 && (noise & 3) === 3;   // (tone 3 sets the noise's rate: kept, silent)
+    const on = k < 3 ? per[k] > 0 && (att[k] < 15 || ref) : att[3] < 15;
+    const vol = att[k] < 15 ? (15 - att[k]) << 3 | 7 : 1;
+    if (!on) { if (psgNote[k] >= 0) { ev(0x80 | ch, psgNote[k], 0); psgNote[k] = -1; } return; }
+    if (k === 3) {
+      const n = 60 + NOISE_NOTE[noise & 7];
+      if (n !== psgNote[3]) {
+        if (psgNote[3] >= 0) ev(0x80 | ch, psgNote[3], 0);
+        ev(0x90 | ch, n, vol); psgNote[3] = n; psgVol[3] = vol;
+      } else if (vol !== psgVol[3]) { ev(0xB0 | ch, 7, vol); psgVol[3] = vol; }
+      return;
+    }
+    const x = cents(3579545 / (32 * per[k]));
+    if (psgNote[k] >= 0) {
+      const b = Math.round((x - 100 * psgNote[k]) / 1200 * 8192);
+      if (Math.abs(b) <= 8191) {
+        if (b !== psgBend[k]) { bend(ch, b); psgBend[k] = b; }
+        if (vol !== psgVol[k]) { ev(0xB0 | ch, 7, vol); psgVol[k] = vol; }
+        return;
+      }
+      ev(0x80 | ch, psgNote[k], 0);
+    }
+    const [n, b] = place(x);
+    if (b !== psgBend[k]) { bend(ch, b); psgBend[k] = b; }
+    ev(0x90 | ch, n, vol);
+    psgNote[k] = n; psgVol[k] = vol;
+  };
+  const psgWrite = d => {
+    if (d & 0x80) {
+      latch = d >> 5 & 3; typ = d >> 4 & 1;
+      if (typ) att[latch] = d & 15;
+      else if (latch < 3) per[latch] = per[latch] & 0x3F0 | d & 15;
+      else noise = d & 7;
+    } else if (typ) att[latch] = d & 15;
+    else if (latch < 3) per[latch] = (d & 0x3F) << 4 | per[latch] & 15;
+    psgSync(latch);
+    if (latch >= 2) { psgSync(2); psgSync(3); }
+  };
+  const hit = () => {                           // a DAC sound starts at pos: the kit's note for it
+    const n = hitAt(pos);
+    if (n < 0) return;
+    ev(0x99, n, 127);
+    later.push([t + 4410, 0x89, n, 0]);
+  };
+  const wait = n => {                           // time moves on; the drums' note-offs due meanwhile go out first
+    const to = t + n;
+    later.sort((x, y) => x[0] - y[0]);
+    while (later.length && later[0][0] <= to) out.push(later.shift());
+    t = to;
+  };
+  for (let ch = 0; ch < 6; ch++) cc(ch, 81, BEND_CC);
+  for (const ch of [6, 7, 8, 10]) { ev(0xC0 | ch, 127, 0); cc(ch, 81, BEND_CC); }   // (program 127: plain, no shape)
+  yield* out.splice(0);
+  for (let pass = 0, p = 0; ;) {
+    if (p >= c.length || c[p] === 0x66) {
+      if (pass >= loops || sp.loopAt < 0) break;
+      pass++; p = sp.loopAt;
+      continue;
+    }
+    const k = cmdLen(c, p), op = c[p];
+    if (!k) break;
+    if (op === 0x52 || op === 0x53) fmWrite(op - 0x52, c[p + 1], c[p + 2]);
+    else if (op === 0x50) psgWrite(c[p + 1]);
+    else if (op === 0x61) wait(c[p + 1] | c[p + 2] << 8);
+    else if (op === 0x62) wait(735);
+    else if (op === 0x63) wait(882);
+    else if (op >= 0x70 && op <= 0x7F) wait((op & 15) + 1);
+    else if (op === 0xE0) {
+      const to = u32(c, p + 1);
+      if (!(runFrom >= 0 && to >= pos && to <= pos + 4)) { runFrom = -1; pos = to; }
+    } else if (op >= 0x80 && op <= 0x8F) {
+      if (runFrom < 0 || t - lastDac > 441) { runFrom = pos; hit(); }
+      lastDac = t;
+      pos++;
+      wait(op & 15);
+    } else if (op === 0x95) { const id = c[p + 2] | c[p + 3] << 8; if (blocks[id] !== undefined) { pos = blocks[id]; hit(); } }
+    else if (op === 0x93 && u32(c, p + 2) !== 0xFFFFFFFF) { pos = u32(c, p + 2); hit(); }
+    p += k;
+    if (out.length) yield* out.splice(0);
+  }
+  later.sort((x, y) => x[0] - y[0]);
+  for (const e of later) out.push(e);
+  for (let ch = 0; ch < 6; ch++) fmOff(ch);
+  for (let k = 0; k < 4; k++) if (psgNote[k] >= 0) ev(0x80 | (k < 3 ? 6 + k : 10), psgNote[k], 0);
+  yield* out.splice(0);
+}
+function kitHits(file, live) {                  // the song's DAC sounds' offsets -> the kit's notes, as sent
+  if (live && !state.kitSent) return () => -1;  // (without a kit, channel 10 is the noise)
+  const n = kitImage(state.drums).n, at = [];
+  state.drums.slice(0, n).forEach(d => (d.at?.[file] || []).forEach(o => at.push([o, d.note])));
+  return pos => { for (const [o, note] of at) if (Math.abs(pos - o) <= 16) return note; return -1; };
+}
+function smf(events) {                          // a format 0 MIDI file; a tick is one sample (44100 a second)
+  const b = [], vlq = n => { const s = [n & 127]; while ((n >>= 7)) s.unshift(n & 127 | 128); b.push(...s); };
+  let t = 0;
+  b.push(0, 0xFF, 0x51, 3, 0x07, 0xA1, 0x20);   // 500000 us a quarter note: with 22050 ticks to it, 1/44100 s each
+  for (const [at, st, d1, d2] of events) {
+    vlq(at - t); t = at;
+    b.push(st, d1);
+    if ((st & 0xF0) !== 0xC0) b.push(d2);
+  }
+  b.push(0, 0xFF, 0x2F, 0);
+  const head = [0x4D, 0x54, 0x68, 0x64, 0, 0, 0, 6, 0, 0, 0, 1, 22050 >> 8, 22050 & 255,
+                0x4D, 0x54, 0x72, 0x6B, b.length >>> 24, b.length >> 16 & 255, b.length >> 8 & 255, b.length & 255];
+  return new Uint8Array([...head, ...b]);
+}
+function saveMidi(i) {
+  const s = state.songs[i], ev = [...vgmMidi(s.mid, kitHits(s.file), s.loops ? 1 : 0)];
+  const a = el("a", { href: URL.createObjectURL(new Blob([smf(ev)], { type: "audio/midi" })),
+                      download: s.name.replace(/[^\w\- ]+/g, "").trim().replace(/ +/g, "_") + ".mid" });
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  setStatus(`${s.name}: ${ev.length} MIDI events saved, in GenMDM's layout.`, "ok");
+}
+let midiRun = 0, midiPlaying = -1;
+async function playMidi(i) {                    // live, in GenMDM mode; the parts as they were after
+  const s = state.songs[i];
+  if (!state.out) { setStatus("The FM-1 is not connected.", "err"); return; }
+  if (playing >= 0) stopSong();
+  const run = ++midiRun, mode = state.mode, out = state.out;
+  midiPlaying = i; renderSongs();
+  try {
+    if (mode !== 1) await setMode(1);
+    const plain = { name: "MIDI", regs: [0, 0xC0, ...Array(28).fill(0)], extra: [0, 0, 0, 0, 0] };   // (no vibrato or doubling)
+    for (let p = 0; p < 6; p++) {
+      await setPartParam(p, 0x22, 127);
+      for (let t = 0; t < 10; t++) { const r = song.wait("patch", () => true, 300); send(patchMsg(0x50, p, plain)); if (await r.catch(() => false)) break; }   // (true: taken; 57 is refused)
+    }
+    const gen = vgmMidi(s.mid, kitHits(s.file, true), $("loop").checked ? Infinity : 0), on = new Map();
+    const t0 = performance.now() + 300;
+    let next = gen.next(), last = 0, shown = 0;
+    setStatus(state.drums.length && !state.kitSent ? "Playing as MIDI, without drums: send the kit from Drums for them."
+      : "Playing as MIDI (GenMDM mode).", "ok");
+    while (midiRun === run && !next.done) {
+      const horizon = performance.now() + 250;
+      while (!next.done && t0 + next.value[0] / 44.1 < horizon) {
+        const [at, st, d1, d2] = next.value, ch = st & 15, ty = st & 0xF0;
+        last = Math.max(t0 + at / 44.1, last + 0.5);   // (spaced: the FM-1 queues 64 messages)
+        out.send(ty === 0xC0 ? [st, d1] : [st, d1, d2], last);
+        if (ty === 0x90) on.set(ch * 128 + d1, 1); else if (ty === 0x80) on.delete(ch * 128 + d1);
+        next = gen.next();
+      }
+      if (performance.now() - shown > 500) {
+        shown = performance.now();
+        const el2 = $("songtime" + i);
+        if (el2) el2.textContent = `${fmt(Math.max(0, shown - t0) / 1000)} / ${fmt(s.secs)}`;
+      }
+      await new Promise(r => setTimeout(r, 50));
+    }
+    while (performance.now() < last) await new Promise(r => setTimeout(r, 50));   // (what was scheduled has gone)
+    for (const k of on.keys()) out.send([0x80 | k >> 7, k & 127, 0]);
+    if (mode !== 1) await setMode(mode);
+    for (let p = 0; p < 6; p++) {                // the parts as they were: their patches (the CCs changed them) and levels
+      await setPartParam(p, 0x25, state.parts[p].slot);
+      await setPartParam(p, 0x22, state.parts[p].level);
+    }
+    if (midiRun === run) setStatus("Song ended.");
+  } catch (e) {
+    setStatus("The song stopped: " + e.message, "err");
+  }
+  if (midiRun === run) { midiPlaying = -1; renderSongs(); }
+}
+function stopMidi() { midiRun++; midiPlaying = -1; renderSongs(); setStatus("Stopped."); }
 
 // ---- the keyboard (the Editor's): part 1's MIDI channel
 const held = new Map();

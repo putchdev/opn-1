@@ -586,7 +586,18 @@ static void part_cc(uint32_t pn, uint32_t cc, uint32_t v)
         {
             op_t *o = &p->op[cc - b];
             switch (k) {
-            case 0: o->tl = (uint8_t)(127u - v); break;
+            case 0: {                           /* a level: written alone (a song's volume moves it many times a second) */
+                uint32_t c, op = cc - b;
+                o->tl = (uint8_t)(127u - v);
+                pt[pn].gen++;
+                for (c = 0; c < 6u; c++)
+                    if (fmc[c].owner == pn + 1u) {
+                        fmc[c].p.op[op].tl = o->tl;
+                        fmc[c].gen = pt[pn].gen;
+                        if (CARRIERS[fmc[c].p.alg & 7u] >> op & 1u) fm_level(c);
+                        else fm(c / 3u, 0x40 + OPOFF[op] + c % 3u, o->tl);
+                    }
+            } return;
             case 1: o->mul = (uint8_t)(v >> 3); break;
             case 2: o->dt = (uint8_t)(v >> 4); break;
             case 3: o->ks = (uint8_t)(v >> 5); break;
@@ -607,6 +618,7 @@ static void part_cc(uint32_t pn, uint32_t cc, uint32_t v)
     case 14: p->alg = (uint8_t)(v >> 4); break;
     case 15: p->fb = (uint8_t)(v >> 4); break;
     case 70: case 71: case 72: case 73: p->op[cc - 70u].am = (uint8_t)(v >> 6); break;
+    case 90: case 91: case 92: case 93: p->op[cc - 90u].ssg = (uint8_t)(v >> 3); break;   /* (not GenMDM's: SSG-EG) */
     case 75: p->pms = (uint8_t)(v >> 4); break;
     case 76: p->ams = (uint8_t)(v >> 5); break;
     case 77: pt[pn].pan = (uint8_t)(v >> 5); break;        /* (as the register's bits: 1 R, 2 L, 3 both) */
@@ -2237,6 +2249,10 @@ static void app_main(void)
                 else if (type == 0x80u || type == 0x90u) psg_note_off(pc, d1);
                 else if (type == 0xE0u && pc < 3u) { psc[pc].bend = (int16_t)((d1 | d2 << 7) - 8192); psg_pitch(pc); }
                 else if (type == 0xB0u && d1 == 81u) psc[pc].bend_range = (uint8_t)(d2 * 18u >> 7);
+                else if (type == 0xB0u && d1 == 7u) {   /* volume: as a note's velocity, now */
+                    psc[pc].vel = (uint8_t)d2;
+                    if (psc[pc].on) { psc[pc].att = (uint8_t)psg_att(pc, 0); psg_vol(pc, psc[pc].att); }
+                }
                 else if (type == 0xC0u) { psc[pc].inst = (uint8_t)(d1 < psg_set_n ? d1 + 1u : 0u); dirty = BANDS_ALL; }
             }
         }

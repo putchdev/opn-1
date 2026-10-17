@@ -42,6 +42,8 @@ back exactly, with a live view of every channel on the device's screen.
   the game used, playable on channels 10 and 7 to 11.
 - **Songs, streamed.** Original VGM songs play on the FM-1 as the console played them, including DAC drums.
   Nothing is stored on the device: the page streams each song while it plays.
+- **Songs as MIDI.** The same songs can be turned into MIDI notes and patch changes in GenMDM's layout: played
+  live on the FM-1 in GenMDM mode, or saved as a `.mid` file to open in a DAW. Close to the original, not exact.
 - **See what a song does.** SEQ shows every channel's note, level and patch in real time. REC grabs the sounds a
   song is playing right now, ready to play.
 - **MIDI over USB or the TRS jack.** By default the FM patch plays on channels 1 to 6 and 12 to 15, the square

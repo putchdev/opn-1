@@ -82,6 +82,7 @@ by CC 81.
 | 55 to 58 | Sustain level | v >> 3 |
 | 59 to 62 | Release rate | v >> 3 |
 | 70 to 73 | AM on for O1 to O4 | v >> 6 |
+| 90 to 93 | SSG-EG for O1 to O4 (not in GenMDM) | v >> 3 (register value, 0 to 15) |
 | 75 | FM depth (PMS) | v >> 4 |
 | 76 | AM depth (AMS) | v >> 5 |
 | 77 | Stereo | v >> 5: 1 right, 2 left, 3 both |
@@ -90,7 +91,16 @@ by CC 81.
 | 81 | Bend range | v * 18 >> 7 semitones |
 | 9 | Instrument | v >> 3 |
 
-On PSG channels 7 to 11, only CC 81 (bend range) is used.
+On PSG channels 7 to 11, CC 81 sets the bend range and CC 7 the volume: as a note's velocity, applied to the
+note playing now.
+
+**A song as MIDI.** The web app's Songs tab can turn a VGM into MIDI in this layout ("Play MIDI" plays it in
+GENMDM mode, "Save .mid" saves it). FM channels 1 to 6 become channels 1 to 6, each register change a CC above
+when its value changes, each key-on a note at velocity 127 and each pitch change a bend (range 12 semitones, a
+note again when it moves further). PSG tones go to 7 to 9 and the noise to 11, with CC 7 for their volume and
+program change 127 (plain) at the start. DAC sounds that are in the kit become notes on 10. Not carried over:
+channel 3's special mode, per-operator key-ons, and DAC sounds outside the kit. The time base of a saved file is
+one tick a sample (22050 ticks a quarter note at 120 bpm).
 
 **PANEL mode.** The FM-1's GLO page has a MIDI setting. Set to PANEL, notes and pitch bend on every channel except
 10 play whatever part is selected on the FM-1's screen, through its arpeggiator if that is on. GENMDM is the

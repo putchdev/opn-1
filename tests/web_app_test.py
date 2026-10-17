@@ -178,6 +178,25 @@ DRIVER = r"""<script>
   $("single").click(); await idle();
   check("One synth puts part 1 on every channel, the rest off", dev.parts[0].chan === 17 && dev.parts.slice(1).every(x => x.chan === 16));
   check("and the editor's note goes", $("edmulti").classList.contains("hide"));
+  {                                                     // a made-up song as MIDI: a patch, an A4 on FM 1, a PSG A4
+    const cmds = [0x52, 0xB0, 0x32, 0x52, 0x40, 0x10, 0x52, 0x4C, 0x05, 0x52, 0xA4, 0x24, 0x52, 0xA0, 0x3B, 0x52, 0x28, 0xF0,
+                  0x61, 0x44, 0xAC, 0x52, 0x28, 0x00, 0x50, 0x8E, 0x50, 0x0F, 0x50, 0x90, 0x62, 0x66];
+    const b = new Uint8Array(0x40 + cmds.length), put = (a, v) => { for (let i = 0; i < 4; i++) b[a + i] = v >>> (8 * i) & 255; };
+    b.set([0x56, 0x67, 0x6D, 0x20]); put(4, b.length - 4); put(8, 0x150); put(0x2C, 7670453); put(0x34, 0x0C); b.set(cmds, 0x40);
+    const ev = [...vgmMidi(vgmSplit(b), () => -1, 0)], has = (st, d1, d2, t) => ev.some(e => e[1] === st && e[2] === d1 && (d2 === undefined || e[3] === d2) && (t === undefined || e[0] === t));
+    const bends = ev.filter(e => e[1] === 0xE0).map(e => (e[2] | e[3] << 7) - 8192);
+    check("MIDI: the patch as GenMDM CCs", has(0xB0, 14, 32) && has(0xB0, 15, 96) && has(0xB0, 16, 111) && has(0xB0, 19, 122));
+    check("MIDI: FM 1's A4, held a second", has(0x90, 69, 127, 0) && has(0x80, 69, 0, 44100) && bends.every(x => Math.abs(x) < 20));
+    check("MIDI: the PSG's A4 on channel 7", has(0x96, 69, 127, 44100));
+    const f = smf(ev);
+    check("MIDI: a MIDI file", String.fromCharCode(...f.slice(0, 4)) === "MThd" && String.fromCharCode(...f.slice(14, 18)) === "MTrk");
+    state.songs = [{ name: "TEST", secs: 1, mid: vgmSplit(b), file: "t.vgm", loops: false, warn: [] }];
+    $("loop").checked = false;
+    const slots = state.parts.map(x => x.slot);
+    await playMidi(0);
+    check("Play MIDI: GenMDM mode while it plays, then the parts as they were", dev.mode === 0 && [0, 1, 2, 3, 4, 5].every(p => dev.frames.some(f => f.t === p && f.vals.every(v => v === 0 || v === 0xC0))) &&
+      dev.parts.every((x, i) => x.slot === slots[i] && x.level === 127) && midiPlaying === -1);
+  }
   state.bank = 1; $("clearbank").click(); await idle();
   check("bank 2 cleared", dev.lib.every(x => x === null) && state.lib.slice(32, 64).every(x => x === null));
   document.getElementById("result").textContent = "RESULT\n" + checks.join("\n") + `\n(dropped ${dev.dropped} messages, status "${$("status").textContent}")`;

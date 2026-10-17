@@ -27,6 +27,8 @@ FM-1's GLOBAL page (MIDI knob) or by CC 26 below, says how they play:
   - **Split:** the parts that are on each have a MIDI channel, triggered at the key.
   - **Mixed:** anything else (set by CCs or the FM-1's SETUP page).
 - **GENMDM:** part n is FM channel n, one note at a time, on channel n: GenMDM v100's layout.
+  The FM-1's screen names the sound the CCs have built after the library slot with the same sound (carrier levels
+  aside, as songs move them for volume), or shows NOT IN THE LIBRARY.
 - **PANEL:** any channel (but 10) plays the part shown on the FM-1, as its keys do.
 
 A part's trigger:
@@ -82,7 +84,7 @@ by CC 81.
 | 39 to 42 | Rate scaling | v >> 5 |
 | 43 to 46 | Attack rate | v >> 2 |
 | 47 to 50 | Decay 1 rate | v >> 2 |
-| 51 to 54 | Decay 2 rate | v >> 3 |
+| 51 to 54 | Decay 2 rate | v >> 2 |
 | 55 to 58 | Sustain level | v >> 3 |
 | 59 to 62 | Release rate | v >> 3 |
 | 70 to 73 | AM on for O1 to O4 | v >> 6 |

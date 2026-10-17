@@ -614,7 +614,7 @@ static void part_cc(uint32_t pn, uint32_t cc, uint32_t v)
             case 3: o->ks = (uint8_t)(v >> 5); break;
             case 4: o->ar = (uint8_t)(v >> 2); break;
             case 5: o->d1r = (uint8_t)(v >> 2); break;
-            case 6: o->d2r = (uint8_t)(v >> 3); break;
+            case 6: o->d2r = (uint8_t)(v >> 2); break;
             case 7: o->sl = (uint8_t)(v >> 3); break;
             default: o->rr = (uint8_t)(v >> 3); break;
             }
@@ -1623,6 +1623,9 @@ static void put_slot(char **d, uint32_t n)      /* "B2 07" */
 static void text_r(int32_t x1, int32_t y, const felucca_font_t *f, const char *s, uint16_t c) { cv_text(x1 - text_w(f, s), y, f, s, c); }
 static void text_c(int32_t x, int32_t w, int32_t y, const felucca_font_t *f, const char *s, uint16_t c) { cv_text(x + (w - text_w(f, s)) / 2, y, f, s, c); }
 
+static int32_t set_match(const patch_t *a);
+static int32_t gm_shown = -1;                   /* GENMDM: the library slot the shown part's CCs match (-1: none) */
+
 static void head_text(char *s)                  /* the header's left: a message, the song, or the panel's part */
 {
     static const char *const N[NPANEL] = {"PART 1", "PART 2", "PART 3", "PART 4", "PART 5", "PART 6",
@@ -1663,7 +1666,11 @@ static void draw_head(void)
     cv_rect(0, 0, 240, 18, C_BLACK);
     head_text(s);
     cv_text(6, 1, &FONT_S, s, msg ? C_PINK : C_WHITE);
-    if (!mon && ui_sel < NPART && lib_any()) { char t[8], *p = t; put_slot(&p, pt[ui_sel].slot); text_r(234, 1, &FONT_S, t, C_PINK); }
+    if (!mon && ui_sel < NPART && lib_any()) {
+        int32_t k = midi_mode == MODE_GENMDM ? set_match(&pt[ui_sel].p) : (int32_t)pt[ui_sel].slot;
+        char t[8], *p = t;
+        if (k >= 0) { put_slot(&p, (uint32_t)k); text_r(234, 1, &FONT_S, t, C_PINK); }
+    }
     cv_rect(0, 18, 240, 2, C_ACC);
     cv_rect(0, 21, 240, 1, C_RED_DK);
 }
@@ -1747,7 +1754,11 @@ static void draw_play(void)                     /* the part's sound: its name, i
 {
     char s[40], *q = s;
     const char *name = "";
-    if (ui_sel < NPART) {
+    if (ui_sel < NPART && midi_mode == MODE_GENMDM) {   /* CCs set the sound: named after the slot that has it */
+        gm_shown = set_match(&pt[ui_sel].p);
+        if (gm_shown >= 0) { put_str(&q, "PATCH "); put_slot(&q, (uint32_t)gm_shown); name = lib[gm_shown].name; }
+        else { put_str(&q, "NOT IN THE LIBRARY"); name = pt[ui_sel].p.name[0] ? pt[ui_sel].p.name : "GENMDM"; }
+    } else if (ui_sel < NPART) {
         if (!lib_any()) put_str(&q, "NO SOUNDS: USE THE PAGE");
         else { put_str(&q, "PATCH "); put_slot(&q, pt[ui_sel].slot); if (edited(ui_sel)) put_str(&q, " *"); }
         name = pt[ui_sel].p.name[0] ? pt[ui_sel].p.name : "EMPTY";
@@ -2263,6 +2274,11 @@ static void app_main(void)
             }
             if (parts_midi(ch, type, d1, d2)) {
                 if (type == 0xC0u) dirty = BANDS_ALL;
+                else if (type == 0xB0u && midi_mode == MODE_GENMDM && ch == ui_sel && !mon && d1 >= 14u &&
+                         !(d1 >= 16u && d1 <= 19u) && set_match(&pt[ch].p) != gm_shown) {
+                    gm_shown = set_match(&pt[ch].p);   /* (a level CC never changes the match) */
+                    dirty = BANDS_ALL;
+                }
             } else if (ch == 9u && kit_n) {     /* with a kit, channel 10 is the drums: note 36 (C2) the first */
                 if (type == 0x90u && d2 && d1 >= 36u) drum(d1 - 36u, d2);
             } else if (ch <= 10u) {             /* 7-9 the tones, 10 the noise (without a kit), 11 the noise always */

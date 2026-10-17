@@ -103,6 +103,7 @@ DRIVER = r"""<script>
   if (TEST.sounds) {                            // Send sounds to FM-1: the kit must arrive whole
     while (busy) await new Promise(r => setTimeout(r, 50));   // (connecting reads the FM-1 first)
     await loadFiles([new File([b], "song.vgm")]);
+    while (busy) await new Promise(r => setTimeout(r, 50));   // (or it started while the files were read)
     await sendSounds();
     const k = kitImage(state.drums);
     const kitOk = k.n === 0 || (dev.bank.length >= k.img.length && k.img.every((x, i) => dev.bank[i] === x));

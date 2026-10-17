@@ -73,6 +73,7 @@ input[type=range] { accent-color: var(--acc); width: 100%; }
 .list { display: flex; flex-direction: column; gap: 6px; max-height: 460px; overflow-y: auto; }
 .item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: var(--soft); border: 1px solid var(--line); border-left: 4px solid var(--acc); }
 .item.off { border-left-color: var(--line2); opacity: .6; }
+.list.off { opacity: .45; }
 .item { flex-wrap: wrap; }
 .item input[type=text] { min-height: 34px; flex: 1 1 100px; min-width: 100px; max-width: 140px; padding: 0 8px; font-family: var(--mono); text-transform: uppercase; }
 .item .meta { font: 12px var(--mono); color: var(--dim); }
@@ -175,6 +176,7 @@ table.parts select { min-height: 38px; width: 100%; }
           </span>
         </div>
         <div class="list" id="imports"></div>
+        <div id="extras" style="display:flex;flex-direction:column;gap:10px"></div>
         <label style="display:flex;gap:8px;align-items:center;font-size:13px;color:var(--dim)"><input type="checkbox" id="normalise" checked style="flex:none;width:18px;height:18px;accent-color:var(--acc)"> Raise each patch to full level (its loudest carrier at maximum)</label>
         <div class="row" style="padding-top:12px;border-top:1px solid var(--line)">
           <label class="field">BANK <select id="tbank"><option value="0">Bank 1</option><option value="1">Bank 2</option><option value="2">Bank 3</option><option value="3">Bank 4</option></select></label>
@@ -323,6 +325,7 @@ const state = {
   parts: Array.from({ length: 6 }, (_, p) => ({ chan: p ? CH_OFF : CH_ALL, level: 127, trig: 0, time: 10, slot: 0 })), mode: 0,
   ed: { patch: null, slot: 0 },                 // (heard on part 1)
   songs: [], found: [], drums: [], psgs: [],
+  kitOn: false, shapesOn: false,                // send the songs' kit and shapes with the patches
 };
 const $ = id => document.getElementById(id);
 function send(bytes) { if (state.out) state.out.send(bytes); }
@@ -1104,6 +1107,7 @@ async function loadFiles(files) {
     state.found = patchList(found);
     state.drums = drumList(drums);
     state.psgs = psgList(psgs);
+    state.kitOn = state.drums.length > 0; state.shapesOn = state.psgs.length > 0;
     const game = songs.find(s => s.game)?.game || files.find(f => !/\.opm$/i.test(f.name))?.name || "VGM";
     const ab = abbrev(game.replace(/ /g, "_"));
     addImports(state.found.map((p, i) => {
@@ -1151,7 +1155,8 @@ function algSvg(a, s = 1) {
 
 // ---- the Library tab
 function renderImports() {
-  $("importbox").classList.toggle("hide", !state.imports.length);
+  $("importbox").classList.toggle("hide", !state.imports.length && !state.kitOn && !state.shapesOn);
+  renderExtras();
   const on = state.imports.filter(p => p.on).length;
   $("importsum").textContent = `${on} OF ${state.imports.length} PATCHES TICKED`;
   const list = $("imports");
@@ -1173,6 +1178,26 @@ function renderImports() {
   });
   renderTarget();
 }
+function renderExtras() {                       // the songs' drum kit and PSG shapes, sent with the patches when ticked
+  const box = $("extras");
+  box.innerHTML = "";
+  const group = (key, title, rows) => {
+    const tick = el("input", { type: "checkbox", checked: state[key], "aria-label": "Send the " + title.toLowerCase(),
+      onchange: e => { state[key] = e.target.checked; list.classList.toggle("off", !state[key]); renderTarget(); } });
+    const list = el("div", { class: "list" + (state[key] ? "" : " off"), style: "max-height:220px" }, ...rows);
+    box.append(el("label", { class: "cap", style: "display:flex;gap:8px;align-items:center" }, tick, title), list);
+  };
+  const n = kitImage(state.drums).n;
+  const row = "flex-wrap:nowrap;padding:4px 10px", hear = f => el("button", { class: "btn small", style: "margin-left:auto", title: "Plays it through the computer", onclick: f }, "Hear");
+  if (n) group("kitOn", `Drum kit: ${n} sounds, channel 10`, state.drums.slice(0, n).map(d => el("div", { class: "item", style: row },
+    el("b", { class: "mono", style: "width:36px;flex:none" }, noteName(d.note)),
+    el("span", { class: "meta" }, `${Math.round(1000 * d.bytes.length / d.rate)} ms · ${d.rate} Hz · ${d.uses}x`), hear(() => preview(d)))));
+  const pl = state.psgs.slice(0, PSG_SET_MAX);
+  if (pl.length) group("shapesOn", `PSG shapes: ${pl.length}, channels 7 to 11`, pl.map(e => el("div", { class: "item", style: row },
+    el("span", { class: "mono", style: "font-size:13px" }, e.name),
+    el("span", { class: "meta" }, `${e.noise ? "noise" : "square"} · ${e.uses}x`), hear(() => previewPsg(e)))));
+}
+function sendsExtras() { return [state.kitOn && kitImage(state.drums).n && "the drum kit", state.shapesOn && state.psgs.length && "the PSG shapes"].filter(Boolean); }
 function targetSlots() {                        // the slots the ticked patches would fill
   const n = state.imports.filter(p => p.on).length, first = +$("tbank").value * BANK_SLOTS + +$("tslot").value;
   return Array.from({ length: Math.min(n, NSLOT - first) }, (_, i) => first + i);
@@ -1182,17 +1207,19 @@ function renderTarget() {
   if (!ts.options.length) for (let i = 0; i < BANK_SLOTS; i++) ts.add(new Option(String(i + 1).padStart(2, "0"), i));
   ts.value = keepV;
   const t = targetSlots(), on = state.imports.filter(p => p.on).length, full = t.filter(s => state.lib[s]).length;
-  $("tnote").textContent = !on ? "Tick some patches." : `Fills ${slotName(t[0])} to ${slotName(t[t.length - 1])}` +
-    (t.length < on ? ` (${on - t.length} do not fit)` : "") + (full ? `. Replaces ${full} patch${full === 1 ? "" : "es"}.` : ". Nothing is replaced.");
-  $("sendimp").disabled = !on;
-  $("sendimp").textContent = `Send ${on || ""} to FM-1`.replace("  ", " ");
+  const extras = sendsExtras();
+  $("tnote").textContent = (!on ? (extras.length ? "No patches ticked." : "Tick some patches.") : `Fills ${slotName(t[0])} to ${slotName(t[t.length - 1])}` +
+    (t.length < on ? ` (${on - t.length} do not fit)` : "") + (full ? `. Replaces ${full} patch${full === 1 ? "" : "es"}.` : ". Nothing is replaced.")) +
+    (extras.length ? ` With ${extras.join(" and ")}.` : "");
+  $("sendimp").disabled = !on && !extras.length;
+  $("sendimp").textContent = "Send to FM-1";
   renderLib();
 }
 $("tbank").onchange = () => { state.bank = +$("tbank").value; renderTarget(); };
 $("tslot").onchange = renderTarget;
 $("selall").onclick = () => { state.imports.forEach(p => p.on = true); renderImports(); };
 $("selnone").onclick = () => { state.imports.forEach(p => p.on = false); renderImports(); };
-$("clearimp").onclick = () => { state.imports = []; renderImports(); };
+$("clearimp").onclick = () => { state.imports = []; state.kitOn = state.shapesOn = false; renderImports(); };
 function renderLib() {
   const banks = $("banks");
   banks.innerHTML = "";
@@ -1218,20 +1245,7 @@ function renderLib() {
   $("editslot").disabled = !p; $("clearslot").disabled = !p;
 }
 $("readlib").onclick = () => job("Reading", readLib);
-$("sendimp").onclick = () => job("Sending", async () => {
-  const list = state.imports.filter(p => p.on), slots = targetSlots(), norm = $("normalise").checked;
-  for (let i = 0; i < slots.length; i++) {
-    setStatus(`Sending ${list[i].name} to ${slotName(slots[i])}...`);
-    await writeSlot(slots[i], norm ? normalised(list[i]) : list[i]);
-    setProgress((i + 1) / (slots.length + 1));
-    renderLib();
-  }
-  setStatus("Keeping them on the FM-1 (the sound stops for a moment)...");
-  const r = await keep();
-  setProgress(1);
-  setStatus(r === 0 ? `${slots.length} patches in ${slotName(slots[0])} to ${slotName(slots[slots.length - 1])}, kept.` :
-    `Sent, but not kept for the next start (error ${r}).`, r === 0 ? "ok" : "err");
-});
+$("sendimp").onclick = () => sendSounds();
 $("clearslot").onclick = () => job("Emptying", async () => {
   const s = state.sel;
   await control(0x5E, s, "cleared", v => v === s);
@@ -1548,15 +1562,22 @@ async function sendShapes() {
 }
 $("sendkit").onclick = () => job("Sending", async () => { const n = await sendKit(); const r = await keep(); setStatus(`${n} drum sounds on the FM-1` + (r === 0 ? ", kept." : ` (not kept: error ${r}).`), r === 0 ? "ok" : "err"); });
 $("sendpsg").onclick = () => job("Sending", async () => { const n = await sendShapes(); const r = await keep(); setStatus(`${n} shapes on the FM-1` + (r === 0 ? ", kept." : ` (not kept: error ${r}).`), r === 0 ? "ok" : "err"); });
-// everything a game gave: its patches into the target slots, its shapes and kit (the link test drives this)
+// the ticked patches into the target slots, and the songs' shapes and kit if ticked (the link test drives this too)
 async function sendSounds() {
   await job("Sending", async () => {
-    const list = state.imports.filter(p => p.on), slots = targetSlots();
-    for (let i = 0; i < slots.length; i++) { await writeSlot(slots[i], $("normalise").checked ? normalised(list[i]) : list[i]); setProgress((i + 1) / slots.length); }
-    const pl = state.psgs.length ? await sendShapes() : 0, kn = state.drums.length ? await sendKit() : 0;
+    const list = state.imports.filter(p => p.on), slots = targetSlots(), norm = $("normalise").checked;
+    for (let i = 0; i < slots.length; i++) {
+      setStatus(`Sending ${list[i].name} to ${slotName(slots[i])}...`);
+      await writeSlot(slots[i], norm ? normalised(list[i]) : list[i]);
+      setProgress((i + 1) / slots.length);
+      renderLib();
+    }
+    const pl = state.shapesOn && state.psgs.length ? await sendShapes() : 0, kn = state.kitOn && state.drums.length ? await sendKit() : 0;
+    setStatus("Keeping them on the FM-1 (the sound stops for a moment)...");
     const r = await keep();
-    setStatus(`On the FM-1: ${slots.length} patches, ${kn} drum sounds, ${pl} PSG shapes.` + (r === 0 ? " Kept." : ` (Not kept: error ${r}.)`), r === 0 ? "ok" : "err");
-    renderLib();
+    const what = [slots.length && `${slots.length} patches in ${slotName(slots[0])} to ${slotName(slots[slots.length - 1])}`,
+                  kn && `${kn} drum sounds`, pl && `${pl} PSG shapes`].filter(Boolean).join(", ");
+    setStatus(r === 0 ? `On the FM-1: ${what}. Kept.` : `Sent, but not kept for the next start (error ${r}).`, r === 0 ? "ok" : "err");
   });
 }
 

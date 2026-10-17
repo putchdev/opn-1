@@ -1743,8 +1743,11 @@ function* vgmMidi(sp, hitAt, loops) {           // [t (samples), status, d1, d2]
     psgSync(latch);
     if (latch >= 2) { psgSync(2); psgSync(3); }
   };
-  const hit = () => {                           // a DAC sound starts at pos: the kit's note for it
-    const n = hitAt(pos);
+  let held = -1, heldFor = 0;
+  const hit = () => { held = pos; heldFor = 0; };   // a DAC sound may start at pos
+  const play = () => {                          // it's a sound once it runs 16 bytes: drivers (Sonic 1) seek to the
+    const n = hitAt(held);                      // next one and write a byte of it long before its beat
+    held = -1;
     if (n < 0) return;
     ev(0x99, n, 127);
     later.push([t + 4410, 0x89, n, 0]);
@@ -1778,10 +1781,11 @@ function* vgmMidi(sp, hitAt, loops) {           // [t (samples), status, d1, d2]
     } else if (op >= 0x80 && op <= 0x8F) {
       if (runFrom < 0 || t - lastDac > 441) { runFrom = pos; hit(); }
       lastDac = t;
+      if (held >= 0 && ++heldFor >= 16) play();
       pos++;
       wait(op & 15);
-    } else if (op === 0x95) { const id = c[p + 2] | c[p + 3] << 8; if (blocks[id] !== undefined) { pos = blocks[id]; hit(); } }
-    else if (op === 0x93 && u32(c, p + 2) !== 0xFFFFFFFF) { pos = u32(c, p + 2); hit(); }
+    } else if (op === 0x95) { const id = c[p + 2] | c[p + 3] << 8; if (blocks[id] !== undefined) { pos = blocks[id]; hit(); play(); } }
+    else if (op === 0x93 && u32(c, p + 2) !== 0xFFFFFFFF) { pos = u32(c, p + 2); hit(); play(); }
     p += k;
     if (out.length) yield* out.splice(0);
   }

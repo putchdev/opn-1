@@ -126,7 +126,7 @@ Open Command Prompt in the project folder and run:
 
 ```bat
 py -m pip install mido python-rtmidi
-py tools\fm1_install.py opn1-2.0.0.fwsc
+py tools\fm1_install.py opn1-2.0.1.fwsc
 ```
 
 **macOS.** Install Python from [python.org](https://www.python.org/downloads/) (or `brew install python`). Open
@@ -135,14 +135,14 @@ Terminal in the project folder and run:
 ```sh
 python3 -m venv ~/.venv/fm1
 ~/.venv/fm1/bin/pip install mido python-rtmidi
-~/.venv/fm1/bin/python tools/fm1_install.py opn1-2.0.0.fwsc
+~/.venv/fm1/bin/python tools/fm1_install.py opn1-2.0.1.fwsc
 ```
 
 **Linux.** On Debian or Ubuntu:
 
 ```sh
 sudo apt install python3-mido python3-rtmidi
-python3 tools/fm1_install.py opn1-2.0.0.fwsc
+python3 tools/fm1_install.py opn1-2.0.1.fwsc
 ```
 
 On other distributions, use the macOS commands (Python's `venv` module may be a separate package).

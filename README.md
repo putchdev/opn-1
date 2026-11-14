@@ -198,3 +198,5 @@ to get its source. Third-party parts keep their own licences; see [LICENSING.md]
 OPN-1 is an independent project. It is not made, endorsed or supported by SEGA, Yamaha, M-VAVE, or the authors of
 the projects above. Sega, Mega Drive and Genesis are trademarks of SEGA Corporation; M-VAVE and FM-1 belong to their
 owners.
+
+You can also try OPN-1 in the browser, no flashing needed, in the free community [FM-1 Emulator](https://fm1-emulator.atst.tools/).
